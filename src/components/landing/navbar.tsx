@@ -9,8 +9,9 @@ interface NavbarProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/solutions/clinics', label: 'Solutions' },
+  { href: '/solutions/clinics', label: 'For Clinics' },
   { href: '/features/ai-receptionist', label: 'Features' },
+  { href: '/features/ai-calling', label: 'AI Calling', isNew: true },
   { href: '/pricing', label: 'Pricing' },
   { href: '/security', label: 'Security' },
 ];
@@ -80,9 +81,14 @@ export function LandingNavbar({
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-full px-4 py-2 text-[13px] font-semibold text-[#110E3D]/70 transition-all duration-200 hover:bg-white hover:text-[#110E3D] hover:shadow-sm lg:px-4.5"
+                className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold text-[#110E3D]/70 transition-all duration-200 hover:bg-white hover:text-[#110E3D] hover:shadow-sm lg:px-4"
               >
-                {item.label}
+                <span>{item.label}</span>
+                {'isNew' in item && item.isNew && (
+                  <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                    New
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
@@ -138,9 +144,14 @@ export function LandingNavbar({
                   key={item.href}
                   href={item.href}
                   onClick={closeMobileMenu}
-                  className="flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-[#110E3D] transition-colors hover:bg-slate-50"
+                  className="flex min-h-11 items-center justify-between rounded-xl px-4 text-sm font-semibold text-[#110E3D] transition-colors hover:bg-slate-50"
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  {'isNew' in item && item.isNew && (
+                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600">
+                      New
+                    </span>
+                  )}
                 </Link>
               ))}
             </nav>

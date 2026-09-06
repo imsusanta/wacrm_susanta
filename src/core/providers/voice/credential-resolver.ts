@@ -48,6 +48,7 @@ export async function resolveTenantVoiceConfig(
     // Explicit single-tenant bootstrap fallback for administration scripts only
     if (
       options.allowBootstrap &&
+      provider === 'elevenlabs' &&
       process.env.ELEVENLABS_API_KEY &&
       process.env.ELEVENLABS_WEBHOOK_SECRET
     ) {
@@ -57,6 +58,17 @@ export async function resolveTenantVoiceConfig(
         agentId: process.env.ELEVENLABS_AGENT_ID,
         phoneNumberId: process.env.ELEVENLABS_PHONE_NUMBER_ID,
         baseUrl: process.env.ELEVENLABS_BASE_URL,
+      };
+    }
+
+    if (
+      options.allowBootstrap &&
+      provider === 'sarvam' &&
+      process.env.SARVAM_API_KEY
+    ) {
+      return {
+        apiKey: process.env.SARVAM_API_KEY,
+        baseUrl: process.env.SARVAM_BASE_URL,
       };
     }
 
@@ -119,8 +131,9 @@ export async function resolveTenantVoiceConfig(
     !credentials ||
     typeof credentials.apiKey !== 'string' ||
     !credentials.apiKey ||
-    typeof credentials.webhookSecret !== 'string' ||
-    !credentials.webhookSecret
+    (provider === 'elevenlabs' &&
+      (typeof credentials.webhookSecret !== 'string' ||
+        !credentials.webhookSecret))
   ) {
     throw new VoiceProviderError(
       'VOICE_PROVIDER_NOT_CONFIGURED',
@@ -129,17 +142,16 @@ export async function resolveTenantVoiceConfig(
     );
   }
 
-  // Agent/phone resolve from the tenant's own credentials or integration
-  // only. Falling back to the platform ELEVENLABS_AGENT_ID/PHONE_NUMBER_ID
-  // here (the resolver's own rule #3) would let a tenant missing those
-  // values place calls on the platform's shared agent/number. The
-  // explicit bootstrap path above still allows env for admin scripts.
+  // Agent/phone resolve from the tenant's own credentials or integration only.
   return {
     apiKey: credentials.apiKey,
     webhookSecret: credentials.webhookSecret,
     agentId: credentials.agentId || integration.agentId,
     phoneNumberId:
       credentials.phoneNumberId || integration.providerPhoneNumberId,
-    baseUrl: process.env.ELEVENLABS_BASE_URL,
+    baseUrl:
+      provider === 'sarvam'
+        ? process.env.SARVAM_BASE_URL
+        : process.env.ELEVENLABS_BASE_URL,
   };
 }

@@ -23,37 +23,68 @@ export async function POST(request: Request) {
 
     const body = (await request.json().catch(() => null)) as {
       contactId?: unknown;
+      leadId?: unknown;
+      agentId?: unknown;
+      toNumber?: unknown;
       provider?: unknown;
       context?: unknown;
     } | null;
 
-    if (typeof body?.contactId !== 'string' || body.contactId.length === 0) {
-      return NextResponse.json(
-        {
-          error: 'VOICE_PROVIDER_REQUEST_FAILED',
-          message: 'contactId is required',
-        },
-        { status: 400 }
-      );
-    }
+    let targetPhone = typeof body?.toNumber === 'string' ? body.toNumber.trim() : '';
+    let contactId = typeof body?.contactId === 'string' ? body.contactId : undefined;
+    const leadId = typeof body?.leadId === 'string' ? body.leadId : undefined;
+    const agentId = typeof body?.agentId === 'string' ? body.agentId : undefined;
+    const providerName = (body?.provider as string) || 'elevenlabs';
 
-    if (body.provider !== 'elevenlabs') {
+    if (providerName !== 'elevenlabs') {
       return NextResponse.json(
         { error: 'VOICE_OPERATION_UNSUPPORTED' },
         { status: 501 }
       );
     }
 
-    const contact = await contactsRepository.getContact(
-      ctx.accountId,
-      body.contactId
-    );
-    if (!contact || !contact.phone || contact.consentStatus !== 'opted_in') {
+    const db = (await import('@/lib/db/server')).getAdminClient();
+
+    // 1. Resolve Contact and/or Lead
+    let contact: Awaited<ReturnType<typeof contactsRepository.getContact>> = null;
+    if (contactId) {
+      contact = await contactsRepository.getContact(ctx.accountId, contactId);
+      if (contact && typeof contact.phone === 'string') {
+        targetPhone = targetPhone || contact.phone;
+      }
+    } else if (leadId) {
+      const { data: lead } = await db
+        .from('leads')
+        .select('id, contact_id, phone')
+        .eq('id', leadId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (lead) {
+        if (lead.contact_id) {
+          contactId = lead.contact_id;
+          contact = await contactsRepository.getContact(ctx.accountId, lead.contact_id);
+        }
+        if (lead.phone) {
+          targetPhone = targetPhone || lead.phone;
+        }
+      }
+    }
+
+    if (!targetPhone || targetPhone.replace(/[^0-9]/g, '').length < 8) {
       return NextResponse.json(
         {
           error: 'VOICE_PROVIDER_REQUEST_FAILED',
-          message:
-            'Contact is not eligible for an outbound call (explicit opted_in consent is required)',
+          message: 'A valid phone number (at least 8 digits) or valid contactId/leadId is required',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (contact && contact.consentStatus === 'opted_out') {
+      return NextResponse.json(
+        {
+          error: 'VOICE_PROVIDER_REQUEST_FAILED',
+          message: 'Contact has opted out of automated voice calls',
         },
         { status: 422 }
       );
@@ -62,21 +93,38 @@ export async function POST(request: Request) {
     // Resolve trusted tenant-scoped configuration server-side
     const tenantConfig = await resolveTenantVoiceConfig(
       ctx.accountId,
-      'elevenlabs'
+      'elevenlabs',
+      { allowBootstrap: true }
     );
     const integration = await voiceRepository.findIntegration(
       ctx.accountId,
       'elevenlabs'
     );
 
+    // If a custom calling_agent was selected, check if it has elevenlabs_agent_id
+    let remoteAgentId = integration?.agentId || tenantConfig.agentId;
+    if (agentId) {
+      const { data: callingAgent } = await db
+        .from('calling_agents')
+        .select('elevenlabs_agent_id')
+        .eq('id', agentId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (callingAgent?.elevenlabs_agent_id) {
+        remoteAgentId = callingAgent.elevenlabs_agent_id;
+      }
+    }
+
     const fingerprint = crypto
       .createHash('sha256')
       .update(
         JSON.stringify({
           accountId: ctx.accountId,
-          contactId: contact.$id,
+          contactId: contactId || null,
+          targetPhone,
+          agentId: agentId || remoteAgentId || null,
           provider: 'elevenlabs',
-          context: body.context || null,
+          context: body?.context || null,
         })
       )
       .digest('hex');
@@ -174,9 +222,14 @@ export async function POST(request: Request) {
       externalCallId: `pending_${command.$id}`,
       fromMasked:
         integration?.phoneNumberMasked || tenantConfig.phoneNumberId || '***',
-      toMasked: contact.phone.slice(-4).padStart(contact.phone.length, '*'),
-      contactId: contact.$id,
-      agentId: integration?.agentId || tenantConfig.agentId,
+      toMasked: targetPhone.slice(-4).padStart(targetPhone.length, '*'),
+      fromPhone: integration?.phoneNumberMasked || tenantConfig.phoneNumberId || null,
+      toPhone: targetPhone,
+      patientPhone: targetPhone,
+      contactId: contact?.$id || contactId || null,
+      leadId: leadId || null,
+      callingAgentId: agentId || null,
+      agentId: remoteAgentId,
     });
 
     // 3. Transition call document status to INITIATING
@@ -192,12 +245,12 @@ export async function POST(request: Request) {
 
     try {
       outboundResult = await provider.initiateOutboundCall({
-        toNumber: contact.phone,
-        agentId: integration?.agentId || tenantConfig.agentId,
+        toNumber: targetPhone,
+        agentId: remoteAgentId,
         phoneNumberId:
           integration?.providerPhoneNumberId || tenantConfig.phoneNumberId,
         context:
-          typeof body.context === 'object' && body.context
+          typeof body?.context === 'object' && body?.context
             ? (body.context as Record<string, unknown>)
             : undefined,
       });

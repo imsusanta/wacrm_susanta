@@ -42,6 +42,7 @@ import { toast } from 'sonner';
 import { LeadStageType } from '@/core/types';
 import { useCan } from '@/hooks/use-can';
 import { salesApi } from '@/lib/sales/api-client';
+import { CallCustomerModal } from '@/components/calling/call-customer-modal';
 
 interface LeadDetailsDrawerProps {
   leadId: string | null;
@@ -191,6 +192,7 @@ export function LeadDetailsDrawer({
   const [newNoteText, setNewNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [callCustomerModalOpen, setCallCustomerModalOpen] = useState(false);
 
   const loadDetails = useCallback(async (id: string) => {
     setLoading(true);
@@ -445,9 +447,7 @@ export function LeadDetailsDrawer({
                         variant="outline"
                         size="sm"
                         disabled={!canSendMessages || isOptedOut}
-                        onClick={() =>
-                          toast.info('Triggering AI voice call dispatcher...')
-                        }
+                        onClick={() => setCallCustomerModalOpen(true)}
                         className="h-8 gap-1 text-xs"
                       >
                         <Phone className="h-3.5 w-3.5 text-purple-500" />
@@ -928,6 +928,17 @@ export function LeadDetailsDrawer({
           </div>
         ) : null}
       </SheetContent>
+      <CallCustomerModal
+        open={callCustomerModalOpen}
+        onOpenChange={setCallCustomerModalOpen}
+        leadId={details?.lead.id}
+        contactId={details?.lead.contact?.id}
+        initialName={details?.lead.contact?.name || details?.lead.title || ''}
+        initialPhone={details?.lead.contact?.phone || ''}
+        onCallInitiated={() => {
+          if (leadId) loadDetails(leadId);
+        }}
+      />
     </Sheet>
   );
 }

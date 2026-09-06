@@ -99,7 +99,7 @@ end
 $$;
 
 -- The old mirror is safe to remove after the booking references are migrated.
-drop table if exists public.travel_packages;
+drop table if exists public.travel_packages cascade;
 
 create index if not exists idx_travel_bookings_tour_package_id
   on public.travel_bookings (tour_package_id);

@@ -5,54 +5,54 @@ import {
   MessageSquare,
   Calendar,
   User,
-  BarChart3,
+  PhoneCall,
   ArrowRight,
 } from 'lucide-react';
 
 const FEATURES = [
   {
-    title: 'Automate Conversations',
+    title: 'Answer Clinic FAQs',
     description:
-      'AI handles FAQs, captures leads and nurtures prospects automatically.',
+      'Give patients approved answers about timings, fees, doctors, and services on WhatsApp.',
     icon: MessageSquare,
     iconBg: 'bg-[#E8F8EE]',
     iconColor: 'text-[#00A884]',
     btnBg: 'bg-[#E8F8EE]',
     btnColor: 'text-[#00A884]',
-    link: '#features',
+    link: '/features/ai-receptionist',
+  },
+  {
+    title: 'AI Phone Calling Agent',
+    description:
+      'Answer & make real phone calls with multilingual Indian voices, zero hallucinations, and auto CRM logging.',
+    icon: PhoneCall,
+    iconBg: 'bg-[#ECFDF5]',
+    iconColor: 'text-[#059669]',
+    btnBg: 'bg-[#ECFDF5]',
+    btnColor: 'text-[#059669]',
+    link: '/features/ai-calling',
   },
   {
     title: 'Book Appointments',
     description:
-      'Let customers book, reschedule or cancel appointments seamlessly.',
+      'Let patients request, confirm, reschedule, or cancel appointments automatically.',
     icon: Calendar,
     iconBg: 'bg-[#F3E8FF]',
     iconColor: 'text-[#9333EA]',
     btnBg: 'bg-[#F3E8FF]',
     btnColor: 'text-[#9333EA]',
-    link: '#features',
+    link: '/features/appointment-booking',
   },
   {
-    title: 'Manage Customers',
+    title: 'Coordinate Reception',
     description:
-      'Store contacts, track interactions and manage follow-ups in one powerful CRM.',
+      'Keep patient conversations, call summaries, assignments, notes, and staff takeover in one inbox.',
     icon: User,
     iconBg: 'bg-[#E0F2FE]',
     iconColor: 'text-[#0284C7]',
     btnBg: 'bg-[#E0F2FE]',
     btnColor: 'text-[#0284C7]',
-    link: '#features',
-  },
-  {
-    title: 'Drive More Sales',
-    description:
-      'Qualify leads, track deals and close more with smart automations.',
-    icon: BarChart3,
-    iconBg: 'bg-[#FFEDD5]',
-    iconColor: 'text-[#EA580C]',
-    btnBg: 'bg-[#FFEDD5]',
-    btnColor: 'text-[#EA580C]',
-    link: '#features',
+    link: '/features/whatsapp-crm',
   },
 ];
 
@@ -111,18 +111,19 @@ export function LandingWhyBusinessesLoveUs() {
           <div className="mb-4 flex flex-col justify-center pr-0 sm:col-span-2 sm:pr-4 lg:col-span-3 xl:col-span-1 xl:mb-0">
             <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-[#00A884] uppercase">
               <span className="h-0.5 w-5 bg-[#00A884]" />
-              <span>WHY BUSINESSES LOVE US</span>
+              <span>WHY CLINICS CHOOSE HELPA</span>
             </div>
 
             <h2 className="mt-4 text-3xl leading-[1.15] font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-[38px]">
-              Everything You Need
+              A Calmer Front Desk
               <br />
-              to Grow on <span className="text-[#00A884]">WhatsApp</span>
+              on <span className="text-[#00A884]">WhatsApp & Voice</span>
             </h2>
 
             <p className="mt-4 max-w-sm text-sm leading-relaxed font-normal text-slate-500">
-              From conversations to conversions – we automate it all so you can
-              focus on growing your business.
+              Handle routine patient communication automatically while your
+              reception team stays available for the conversations that need a
+              human.
             </p>
           </div>
 

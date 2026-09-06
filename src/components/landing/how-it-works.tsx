@@ -27,8 +27,8 @@ export function LandingHowItWorks() {
             <span className="text-[#00A884]">3 Simple Steps</span>
           </h2>
           <p className="mt-3 text-sm font-normal text-slate-500 sm:text-base">
-            Launch your AI receptionist in minutes and start converting
-            conversations.
+            Configure your clinic front desk and test a patient journey in
+            minutes.
           </p>
         </div>
 
@@ -104,7 +104,8 @@ export function LandingHowItWorks() {
                   Connect WhatsApp
                 </div>
                 <div className="mt-1 text-[10px] leading-snug text-slate-500">
-                  Connect your WhatsApp Business number to get started.
+                  Connect the clinic&apos;s WhatsApp Business number to get
+                  started.
                 </div>
 
                 {/* Phone Input Box */}
@@ -129,8 +130,8 @@ export function LandingHowItWorks() {
                 1. Connect Your WhatsApp
               </h3>
               <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-slate-500 sm:text-sm">
-                Connect your WhatsApp Business number in a few clicks and
-                we&apos;ll sync everything instantly.
+                Connect your clinic&apos;s WhatsApp Business number through
+                Meta&apos;s supported onboarding flow.
               </p>
             </div>
           </div>
@@ -206,8 +207,8 @@ export function LandingHowItWorks() {
                 2. Configure Your AI
               </h3>
               <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-slate-500 sm:text-sm">
-                Set your business info, working hours, FAQs and let AI handle
-                conversations the way you want.
+                Add clinic hours, doctors, fees, approved FAQs, and staff
+                handoff rules before going live.
               </p>
             </div>
           </div>
@@ -314,7 +315,7 @@ export function LandingHowItWorks() {
                 {/* Metric 4 */}
                 <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5">
                   <div className="text-[10px] font-medium text-slate-500">
-                    Closed Deals
+                    Completed Visits
                   </div>
                   <div className="mt-0.5 text-lg font-black text-slate-900">
                     16
@@ -343,8 +344,8 @@ export function LandingHowItWorks() {
                 3. Go Live & Grow
               </h3>
               <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-slate-500 sm:text-sm">
-                Your AI receptionist is live 24/7 – engaging leads, booking
-                appointments and growing your business.
+                Your AI receptionist can answer routine enquiries, book
+                appointments, and escalate safely to clinic staff.
               </p>
             </div>
           </div>
@@ -362,7 +363,7 @@ export function LandingHowItWorks() {
                 <span className="text-[#00A884]">24/7.</span>
               </h4>
               <p className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">
-                Save time. Engage more leads. Close more deals.
+                Fewer repetitive calls. Faster replies. A calmer reception desk.
               </p>
             </div>
           </div>
@@ -371,7 +372,7 @@ export function LandingHowItWorks() {
             href="/signup"
             className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#00A884] px-6 py-3 text-xs font-bold text-white shadow-md shadow-[#00A884]/25 transition hover:scale-[1.02] hover:bg-[#008f70] active:scale-[0.98] sm:text-sm"
           >
-            <span>Book a Demo</span>
+            <span>Start Clinic Trial</span>
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

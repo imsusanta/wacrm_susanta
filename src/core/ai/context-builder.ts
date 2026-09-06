@@ -9,6 +9,7 @@ import { getAdminClient } from '@/lib/db/server';
 import { getIndustryModulePort } from '../modules/industry-port';
 import { getConversationMemory } from './memory';
 import { aiToolRegistry } from './tools';
+import { detectRegionalLanguage } from './regional-language';
 import type { AiContextBundle, AiRole, IndustryAiConfig } from './types';
 
 const CORE_SYSTEM_PROMPT = `You are Helpa AI, a professional, empathetic, and highly capable business communication assistant built by Helpa Studio.
@@ -113,8 +114,13 @@ export async function buildAiContextBundle({
   const latestCustomerMsg = [...memory.messages]
     .reverse()
     .find((m) => m.role === 'user');
-  const languageDirective = latestCustomerMsg?.content
-    ? `\n\n══════════════════════════════════════════════════\nCRITICAL LANGUAGE DIRECTIVE:\nThe customer's latest message is: "${latestCustomerMsg.content}"\nDetect the language and write your response in the EXACT same language and script/style.\n══════════════════════════════════════════════════`
+
+  const regionalLang = latestCustomerMsg?.content
+    ? detectRegionalLanguage(latestCustomerMsg.content)
+    : null;
+
+  const languageDirective = regionalLang
+    ? `\n\n══════════════════════════════════════════════════\nCRITICAL REGIONAL LANGUAGE DIRECTIVE (${regionalLang.name.toUpperCase()}):\nCustomer message: "${latestCustomerMsg?.content}"\n${regionalLang.guidancePrompt}\n══════════════════════════════════════════════════`
     : '';
 
   const fullSystemPrompt = `${CORE_SYSTEM_PROMPT}
@@ -149,5 +155,14 @@ ${toolsSummary}${languageDirective}
     knowledgeSnippets,
     availableTools,
     businessName,
+    detectedLanguage: regionalLang
+      ? {
+          code: regionalLang.code,
+          name: regionalLang.name,
+          script: regionalLang.script,
+          isRegionalIndian: regionalLang.isRegionalIndian,
+          confidence: regionalLang.confidence,
+        }
+      : undefined,
   };
 }

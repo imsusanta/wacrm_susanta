@@ -136,8 +136,8 @@ export default function AppointmentBookingFeaturePage() {
                 Automated 2-Hour Reminders
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                Cut no-shows by up to 50% with timely WhatsApp reminder alerts
-                with clinic location pins.
+                Send timely WhatsApp reminder alerts with appointment details
+                and clinic location pins.
               </p>
             </div>
 

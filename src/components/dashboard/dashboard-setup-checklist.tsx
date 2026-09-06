@@ -10,11 +10,22 @@ interface DashboardSetupChecklistProps {
   onResumeOnboarding?: () => void | Promise<void>;
 }
 
+interface ChecklistItem {
+  id?: string;
+  label: string;
+  done: boolean;
+  count?: number;
+  href: string;
+}
+
 export function DashboardSetupChecklist({
   onResumeOnboarding,
 }: DashboardSetupChecklistProps = {}) {
   const { account, accountId, accountRole } = useAuth();
   const [dismissed, setDismissed] = useState(false);
+  const [dynamicItems, setDynamicItems] = useState<ChecklistItem[] | null>(
+    null
+  );
   const [hasWhatsApp, setHasWhatsApp] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -31,14 +42,20 @@ export function DashboardSetupChecklist({
 
     async function checkStatus() {
       try {
-        const res = await fetch('/api/whatsapp/config');
+        const res = await fetch('/api/account/checklist-status');
         if (res.ok) {
           const data = await res.json();
-          if (data?.connected === true) {
-            setHasWhatsApp(true);
-          } else {
-            setHasWhatsApp(false);
+          if (Array.isArray(data?.items)) {
+            setDynamicItems(data.items);
+            setHasWhatsApp(Boolean(data.whatsapp_done));
+            return;
           }
+        }
+        // Fallback to whatsapp/config if checklist-status route is unavailable
+        const waRes = await fetch('/api/whatsapp/config');
+        if (waRes.ok) {
+          const waData = await waRes.json();
+          setHasWhatsApp(waData?.connected === true);
         }
       } catch {
         /* ignore fallback */
@@ -54,7 +71,7 @@ export function DashboardSetupChecklist({
 
   if (dismissed || loading) return null;
 
-  const items = [
+  const items: ChecklistItem[] = dynamicItems ?? [
     {
       label: 'Business Profile configured',
       done: Boolean(
@@ -62,8 +79,16 @@ export function DashboardSetupChecklist({
       ),
       href: '/settings',
     },
-    { label: 'Services & Pricing saved', done: true, href: '/knowledge-base' },
-    { label: 'AI Receptionist configured', done: true, href: '/settings/ai' },
+    {
+      label: 'Services & Pricing saved',
+      done: false,
+      href: '/knowledge-base',
+    },
+    {
+      label: 'AI Receptionist configured',
+      done: false,
+      href: '/settings/ai',
+    },
     {
       label: 'WhatsApp connected',
       done: hasWhatsApp,
@@ -86,10 +111,10 @@ export function DashboardSetupChecklist({
   };
 
   return (
-    <div className="relative mb-6 overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-slate-900/60 to-slate-900/40 p-5 shadow-sm">
+    <div className="bg-card relative mb-6 overflow-hidden rounded-2xl border border-emerald-500/30 p-5 shadow-sm">
       <button
         onClick={handleDismiss}
-        className="absolute top-4 right-4 text-zinc-500 transition-colors hover:text-zinc-300"
+        className="text-muted-foreground hover:bg-muted hover:text-foreground absolute top-3 right-3 rounded-md p-1 transition-colors"
         title="Dismiss checklist"
         aria-label="Dismiss setup checklist"
       >
@@ -99,20 +124,19 @@ export function DashboardSetupChecklist({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex size-6 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-400">
+            <span className="flex size-6 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-bold text-emerald-700 dark:text-emerald-300">
               {completedCount}/{totalCount}
             </span>
-            <h3 className="text-sm font-bold text-white">
+            <h3 className="text-foreground text-sm font-bold">
               Get Started with Helpa
             </h3>
           </div>
           <p className="text-muted-foreground mt-1 text-xs">
-            Complete the remaining setup to let your AI handle customer
-            inquiries automatically.
+            Finish your clinic setup, then test one complete patient journey.
           </p>
 
           {/* Progress bar */}
-          <div className="mt-2.5 h-1.5 w-48 overflow-hidden rounded-full bg-white/10">
+          <div className="bg-muted mt-2.5 h-1.5 w-48 overflow-hidden rounded-full">
             <div
               className="h-full bg-emerald-500 transition-all duration-300"
               style={{ width: `${percent}%` }}
@@ -127,7 +151,7 @@ export function DashboardSetupChecklist({
               size="sm"
               variant="outline"
               onClick={onResumeOnboarding}
-              className="border-emerald-500/30 bg-emerald-500/10 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 hover:text-white"
+              className="border-emerald-500/40 bg-emerald-500/10 text-xs font-bold text-emerald-700 hover:bg-emerald-500/20 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
             >
               Resume Setup
             </Button>
@@ -146,12 +170,12 @@ export function DashboardSetupChecklist({
       </div>
 
       {/* Checklist items */}
-      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/5 pt-3 sm:grid-cols-4">
-        {items.map((item, idx) => (
+      <div className="border-border mt-4 grid grid-cols-1 gap-2 border-t pt-3 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((item) => (
           <Link
-            key={idx}
+            key={item.id ?? item.href}
             href={item.href}
-            className="group flex items-center gap-2 text-xs text-zinc-300 transition-colors hover:text-white"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground group flex min-h-9 items-center gap-2 rounded-lg px-2 text-xs transition-colors"
           >
             {item.done ? (
               <CheckCircle2 className="size-3.5 shrink-0 text-emerald-400" />
@@ -160,10 +184,15 @@ export function DashboardSetupChecklist({
             )}
             <span
               className={
-                item.done ? 'text-zinc-500 line-through' : 'font-medium'
+                item.done
+                  ? 'text-muted-foreground line-through opacity-75'
+                  : 'text-foreground font-medium'
               }
             >
               {item.label}
+              {typeof item.count === 'number' && item.count > 0
+                ? ` (${item.count})`
+                : ''}
             </span>
           </Link>
         ))}

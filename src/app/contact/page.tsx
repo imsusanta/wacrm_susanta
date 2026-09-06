@@ -96,15 +96,13 @@ export default function ContactPage() {
 
         <div className="text-muted-foreground space-y-2 rounded-2xl border border-[#25D366]/30 bg-[#25D366]/10 p-6 text-xs">
           <div className="flex items-center gap-2 text-sm font-bold text-[#075E54] dark:text-[#25D366]">
-            <ShieldCheck className="h-4 w-4" /> Compliance & DPDP Act 2023
-            Disclosure
+            <ShieldCheck className="h-4 w-4" /> Privacy & Deployment Disclosure
           </div>
           <p>
-            Helpa Studio is an Indian enterprise SaaS company. Customer data is
-            hosted securely on encrypted Indian data center servers in
-            compliance with the Digital Personal Data Protection (DPDP) Act
-            2023. Patient & clinic health records are encrypted at rest and in
-            transit.
+            Helpa Studio is an Indian SaaS company. Production customers should
+            confirm the selected hosting region, subprocessors, retention terms,
+            consent workflow, and legal requirements before processing patient
+            data.
           </p>
         </div>
       </div>

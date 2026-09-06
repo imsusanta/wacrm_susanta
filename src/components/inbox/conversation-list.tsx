@@ -294,7 +294,7 @@ export function ConversationList({
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
   return (
-    <div className="border-border bg-card flex h-full w-full flex-col border-r lg:w-80">
+    <div className="border-border bg-card flex h-full w-full min-w-0 flex-col overflow-hidden border-r lg:w-80">
       {/* Header with Title and New Message button */}
       <div className="border-border flex items-center justify-between border-b px-3.5 py-3">
         <div className="flex items-center gap-2">
@@ -460,7 +460,7 @@ export function ConversationList({
       </div>
 
       {/* Conversation Items */}
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 min-w-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:w-full [&_[data-slot=scroll-area-viewport]>div]:min-w-0">
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2.5 py-16 text-center">
             <div className="border-primary h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" />
@@ -557,7 +557,7 @@ export function ConversationList({
             )}
           </div>
         ) : (
-          <div className="flex flex-col">
+          <div className="flex w-full min-w-0 flex-col overflow-hidden">
             {filtered.map((conv) => (
               <ConversationItem
                 key={conv.id}
@@ -622,7 +622,7 @@ function ConversationItem({
     <button
       onClick={handleClick}
       className={cn(
-        'hover:bg-muted/50 flex w-full items-start gap-3 px-3 py-3 text-left transition-colors',
+        'hover:bg-muted/50 flex w-full max-w-full min-w-0 items-start gap-3 overflow-hidden px-3 py-3 text-left transition-colors',
         isActive && 'border-primary bg-muted/70 border-l-2'
       )}
     >

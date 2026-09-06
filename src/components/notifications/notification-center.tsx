@@ -13,7 +13,9 @@ import {
   Bot,
   DollarSign,
   AlertCircle,
+  BellRing,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -26,6 +28,8 @@ export function NotificationCenter() {
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
   const router = useRouter();
 
   const fetchNotifications = useCallback(async () => {
@@ -50,6 +54,68 @@ export function NotificationCenter() {
     }, 60000); // Polling every 60s when visible
     return () => clearInterval(interval);
   }, [fetchNotifications]);
+
+  useEffect(() => {
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      'serviceWorker' in navigator
+    ) {
+      setPushSupported(true);
+      if (Notification.permission === 'granted') {
+        setPushSubscribed(true);
+      }
+    }
+  }, []);
+
+  const handleEnablePush = async () => {
+    try {
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        toast.error('Push notifications are not supported by this browser.');
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        toast.error('Notification permission was denied.');
+        return;
+      }
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        const options: PushSubscriptionOptionsInit = {
+          userVisibleOnly: true,
+          ...(vapidKey ? { applicationServerKey: vapidKey } : {}),
+        };
+        try {
+          sub = await reg.pushManager.subscribe(options);
+        } catch {
+          // If server key is needed and missing in browser, fallback
+        }
+      }
+
+      if (sub) {
+        const subJson = sub.toJSON();
+        await fetch('/api/notifications/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: subJson.keys?.p256dh || '',
+              auth: subJson.keys?.auth || '',
+            },
+          }),
+        });
+      }
+      setPushSubscribed(true);
+      toast.success('Instant push alerts enabled.');
+    } catch (err) {
+      console.warn('[NotificationCenter] Push enable error:', err);
+      toast.error('Could not activate push notifications.');
+    }
+  };
 
   const handleMarkAllRead = async () => {
     try {
@@ -211,7 +277,18 @@ export function NotificationCenter() {
         </div>
 
         {/* Footer */}
-        <div className="border-border/60 border-t p-2 text-center">
+        <div className="border-border/60 flex flex-col gap-1 border-t p-2">
+          {pushSupported && !pushSubscribed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleEnablePush}
+              className="border-primary/30 text-primary hover:bg-primary/10 h-7 w-full text-[11px] font-medium"
+            >
+              <BellRing className="mr-1.5 size-3" />
+              Enable Push Notifications
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"

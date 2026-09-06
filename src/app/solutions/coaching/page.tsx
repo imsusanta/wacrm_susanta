@@ -88,8 +88,8 @@ export default function CoachingSolutionPage() {
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
               When students or parents ask about fee structures or batch
-              timings, every second counts. Helpa replies in 2 seconds, delivers
-              syllabus PDFs, qualifies lead interest, and books demo classes.
+              timings, prompt follow-up matters. Helpa can deliver syllabus
+              PDFs, qualify interest, and book demo classes on WhatsApp.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
@@ -146,7 +146,7 @@ export default function CoachingSolutionPage() {
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-slate-600">
                 Send test announcements, rank lists, and new batch launch alerts
-                directly to enrolled student groups with 98% open rates.
+                directly to enrolled student groups through approved templates.
               </p>
             </div>
           </div>

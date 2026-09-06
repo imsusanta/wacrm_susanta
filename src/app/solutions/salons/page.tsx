@@ -133,8 +133,8 @@ export default function SalonsSolutionPage() {
                 Zero Missed Inquiries
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                60% of beauty service bookings happen between 8 PM and 11 PM.
-                Helpa captures them instantly while you sleep.
+                Capture after-hours beauty service enquiries and offer available
+                booking slots without keeping staff online overnight.
               </p>
             </div>
 

@@ -21,6 +21,7 @@ import {
   CheckCheck,
   ChevronDown,
   Bot,
+  PhoneCall,
 } from 'lucide-react';
 
 interface HeroProps {
@@ -37,32 +38,32 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
     {
       id: 0,
       name: 'Priya Singh',
-      role: 'Lead',
+      role: 'Patient',
       phone: '+91 98765 43210',
       avatar:
         'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-      lastMsg: 'Hi, I want to know about your service and pricing.',
+      lastMsg: 'Can I book Dr. Sharma for tomorrow?',
       time: '10:30 AM',
       unread: 2,
       messages: [
         {
           sender: 'user',
-          text: 'Hi 👋\nI want to know about your service and pricing.',
+          text: 'Hi 👋\nCan I book Dr. Sharma for tomorrow?',
           time: '10:30 AM',
         },
         {
           sender: 'bot',
-          text: 'Hello Priya! 👋\nThanks for reaching out to us. How can I help you today?',
+          text: 'Hello Priya! 👋\nDr. Sharma has openings at 11:00 AM and 3:00 PM tomorrow.',
           time: '10:31 AM',
         },
         {
           sender: 'user',
-          text: 'Yes, please share the pricing.',
+          text: 'Please book the 11:00 AM slot.',
           time: '10:31 AM',
         },
         {
           sender: 'bot',
-          text: 'Sure! Here are our plans...',
+          text: 'Your appointment is confirmed. I will send a reminder before your visit.',
           time: '10:32 AM',
         },
       ],
@@ -70,22 +71,22 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
     {
       id: 1,
       name: 'Ravi Sharma',
-      role: 'Customer',
+      role: 'Patient',
       phone: '+91 98123 45678',
       avatar:
         'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-      lastMsg: 'Can I book an appointment for tomorrow?',
+      lastMsg: 'What is the consultation fee?',
       time: '10:15 AM',
       unread: 1,
       messages: [
         {
           sender: 'user',
-          text: 'Can I book an appointment for tomorrow?',
+          text: 'What is the consultation fee?',
           time: '10:15 AM',
         },
         {
           sender: 'bot',
-          text: 'Sure Ravi! We have slots available at 11:00 AM and 3:00 PM. Which one suits you?',
+          text: 'The consultation fee is ₹600. Would you like me to check available slots?',
           time: '10:16 AM',
         },
       ],
@@ -93,22 +94,22 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
     {
       id: 2,
       name: 'Amit Verma',
-      role: 'Lead',
+      role: 'Patient',
       phone: '+91 97111 22334',
       avatar:
         'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-      lastMsg: 'Do you provide support on weekends?',
+      lastMsg: 'Is the clinic open on Sunday?',
       time: '09:45 AM',
       unread: 0,
       messages: [
         {
           sender: 'user',
-          text: 'Do you provide support on weekends?',
+          text: 'Is the clinic open on Sunday?',
           time: '09:45 AM',
         },
         {
           sender: 'bot',
-          text: 'Yes Amit! Our AI receptionist works 24/7, 365 days a year without breaks!',
+          text: 'The clinic is closed on Sunday, but I can book the next available Monday slot.',
           time: '09:46 AM',
         },
       ],
@@ -116,22 +117,22 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
     {
       id: 3,
       name: 'Neha Patel',
-      role: 'Lead',
+      role: 'Patient',
       phone: '+91 96543 21098',
       avatar:
         'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80',
-      lastMsg: 'Please share the details on your services.',
+      lastMsg: 'Please send my appointment details.',
       time: '09:30 AM',
       unread: 0,
       messages: [
         {
           sender: 'user',
-          text: 'Please share the details on your services.',
+          text: 'Please send my appointment details.',
           time: '09:30 AM',
         },
         {
           sender: 'bot',
-          text: 'Sending our complete service catalog brochure right away 📄',
+          text: 'Your appointment slip has been sent. Please arrive 10 minutes early.',
           time: '09:31 AM',
         },
       ],
@@ -139,22 +140,22 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
     {
       id: 4,
       name: 'Vikram Das',
-      role: 'Customer',
+      role: 'Patient',
       phone: '+91 95432 10987',
       avatar:
         'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
-      lastMsg: 'Thanks for the information!',
+      lastMsg: 'Thanks, the reminder was helpful!',
       time: 'Yesterday',
       unread: 0,
       messages: [
         {
           sender: 'user',
-          text: 'Thanks for the information!',
+          text: 'Thanks, the reminder was helpful!',
           time: 'Yesterday',
         },
         {
           sender: 'bot',
-          text: 'You are welcome! Have a wonderful day 😊',
+          text: 'You are welcome. We will see you at the clinic 😊',
           time: 'Yesterday',
         },
       ],
@@ -178,21 +179,20 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
         <div className="text-center">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50 px-4 py-1.5 text-xs font-semibold text-[#075E54] shadow-sm sm:text-sm">
             <span className="h-2 w-2 animate-pulse rounded-full bg-[#00A884]" />
-            <span>Your 24/7 AI Front Desk</span>
+            <span>Built for clinics • WhatsApp & AI Voice Calling</span>
           </div>
 
           {/* 2. MAIN HEADLINE */}
           <h1 className="mx-auto mb-6 max-w-5xl text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
-            WhatsApp <span className="text-[#00A884]">AI</span> Receptionist
-            <br className="hidden sm:inline" /> & Automation with Smart CRM
+            WhatsApp & Phone <span className="text-[#00A884]">AI</span> Receptionist
+            <br className="hidden sm:inline" /> for Busy Clinics
           </h1>
 
           {/* 3. SUB-HEADLINE / PARAGRAPH */}
           <p className="mx-auto mb-8 max-w-3xl text-base leading-relaxed font-normal text-slate-600 sm:text-lg">
-            Never miss a lead again. Our AI receptionist automates chats,
-            qualifies leads, books appointments and manages customer
-            relationships – all on{' '}
-            <span className="font-bold text-[#00A884]">WhatsApp.</span>
+            Answer patient enquiries, book doctor appointments, send reminders,
+            and answer real phone calls in Indian regional languages – on{' '}
+            <span className="font-bold text-[#00A884]">WhatsApp & Voice.</span>
           </p>
 
           {/* 4. CALL TO ACTION BUTTONS */}
@@ -201,15 +201,21 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
               href={isAuthenticated ? '/dashboard' : '/signup'}
               className="flex min-h-12 items-center gap-2 rounded-full bg-[#00A884] px-8 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#00A884]/25 transition hover:scale-[1.03] hover:bg-[#008f70] active:scale-[0.98] sm:text-base"
             >
-              <span>Book a Demo</span>
+              <span>Start Free Trial</span>
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="#features"
-              className="flex min-h-12 items-center gap-2 rounded-full border border-slate-300 bg-white px-8 py-3.5 text-sm font-bold text-slate-800 shadow-sm transition hover:scale-[1.02] hover:bg-slate-50 sm:text-base"
+              href="/features/ai-calling"
+              className="flex min-h-12 items-center gap-2 rounded-full border border-emerald-300 bg-white px-7 py-3.5 text-sm font-bold text-emerald-800 shadow-sm transition hover:scale-[1.02] hover:bg-emerald-50 sm:text-base"
             >
-              <span>Explore Features</span>
-              <ArrowRight className="h-4 w-4 text-slate-500" />
+              <PhoneCall className="h-4 w-4 text-emerald-600 animate-pulse" />
+              <span>Explore AI Calling</span>
+            </Link>
+            <Link
+              href="#features"
+              className="flex min-h-12 items-center gap-2 rounded-full border border-slate-300 bg-white px-7 py-3.5 text-sm font-bold text-slate-800 shadow-sm transition hover:scale-[1.02] hover:bg-slate-50 sm:text-base"
+            >
+              <span>All Features</span>
             </Link>
           </div>
 
@@ -222,10 +228,10 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
               </div>
               <div>
                 <div className="text-xs leading-tight font-extrabold text-slate-900 sm:text-sm">
-                  24/7 AI
+                  24/7 Patient
                 </div>
                 <div className="text-xs font-medium text-slate-500">
-                  Availability
+                  Replies
                 </div>
               </div>
             </div>
@@ -237,10 +243,10 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
               </div>
               <div>
                 <div className="text-xs leading-tight font-extrabold text-slate-900 sm:text-sm">
-                  Instant Lead
+                  Appointment
                 </div>
                 <div className="text-xs font-medium text-slate-500">
-                  Response
+                  Booking
                 </div>
               </div>
             </div>
@@ -252,10 +258,10 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
               </div>
               <div>
                 <div className="text-xs leading-tight font-extrabold text-slate-900 sm:text-sm">
-                  Auto Booking &
+                  Safe Staff
                 </div>
                 <div className="text-xs font-medium text-slate-500">
-                  Reminders
+                  Handoff
                 </div>
               </div>
             </div>
@@ -267,7 +273,7 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
               </div>
               <div>
                 <div className="text-xs leading-tight font-extrabold text-slate-900 sm:text-sm">
-                  Smart CRM &
+                  Patient CRM &
                 </div>
                 <div className="text-xs font-medium text-slate-500">
                   Follow-ups
@@ -336,7 +342,7 @@ export function LandingHero({ isAuthenticated }: HeroProps) {
                   />
                   <div>
                     <div className="text-xs leading-tight font-bold text-slate-900">
-                      Sushanta Digital
+                      Aarogya Clinic
                     </div>
                     <div className="text-[10px] font-medium text-slate-400">
                       Admin

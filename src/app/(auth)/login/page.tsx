@@ -319,7 +319,7 @@ function LoginPageInner() {
           >
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-              <span>HIPAA Compliant & End-to-End Encrypted</span>
+              <span>Encrypted credentials & tenant-isolated access</span>
             </div>
             <div>© {new Date().getFullYear()} Helpa Inc.</div>
           </motion.div>
@@ -378,32 +378,33 @@ function LoginPageInner() {
                     </span>
                     <span>10:42 AM • Instant</span>
                   </div>
-                  &ldquo;Hello! I have confirmed Dr. Roy for tomorrow at 3:00 PM
-                  via Calendly. Here is your appointment link & OPD ticket
-                  details!&rdquo;
+                  &ldquo;Dr. Roy has an available slot tomorrow at 3:00 PM. I
+                  can confirm it and send the appointment details now.&rdquo;
                 </div>
               </div>
 
               {/* Metrics Grid */}
               <div className="mt-6 grid grid-cols-3 gap-3 border-t border-white/10 pt-6 text-center">
                 <div className="rounded-xl border border-white/5 bg-white/5 p-3">
-                  <div className="text-lg font-black text-white">99.4%</div>
+                  <div className="text-lg font-black text-white">Approved</div>
                   <div className="text-[10px] font-semibold text-zinc-400">
-                    Booking Accuracy
+                    Knowledge Answers
                   </div>
                 </div>
                 <div className="rounded-xl border border-white/5 bg-white/5 p-3">
                   <div className="text-lg font-black text-emerald-400">
-                    &lt; 2s
+                    24/7
                   </div>
                   <div className="text-[10px] font-semibold text-zinc-400">
-                    Voice Response
+                    Patient Replies
                   </div>
                 </div>
                 <div className="rounded-xl border border-white/5 bg-white/5 p-3">
-                  <div className="text-lg font-black text-indigo-400">3.5x</div>
+                  <div className="text-lg font-black text-indigo-400">
+                    Shared
+                  </div>
                   <div className="text-[10px] font-semibold text-zinc-400">
-                    Lead Conversion
+                    Staff History
                   </div>
                 </div>
               </div>

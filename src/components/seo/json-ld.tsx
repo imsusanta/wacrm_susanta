@@ -61,7 +61,7 @@ export function OrganizationJsonLd() {
     url: 'https://helpa.studio',
     logo: 'https://helpa.studio/helpa-logo.png',
     description:
-      'Helpa is a 24/7 WhatsApp AI Receptionist & CRM for clinics, salons, coaching institutes, and service businesses in India, powered by the official Meta WhatsApp Cloud API.',
+      'Helpa is a WhatsApp AI receptionist and patient communication workspace for independent clinics in India, powered by the official Meta WhatsApp Cloud API.',
     address: {
       '@type': 'PostalAddress',
       streetAddress: 'Level 4, Tech Park Campus, Sevoke Road',
@@ -106,7 +106,7 @@ export function SoftwareApplicationJsonLd() {
     image: 'https://helpa.studio/helpa-logo.png',
     screenshot: 'https://helpa.studio/assets/helpa-hero.svg',
     description:
-      '24/7 AI-powered WhatsApp receptionist and patient engagement CRM for clinics, salons, coaching centers, and service businesses. Automate appointments, customer support, and lead capture with official Meta Cloud API coexistence.',
+      'WhatsApp AI receptionist and patient engagement CRM for independent clinics. Manage approved FAQs, appointments, reminders, and staff handoff with the official Meta Cloud API.',
     offers: {
       '@type': 'AggregateOffer',
       priceCurrency: 'INR',
@@ -147,13 +147,6 @@ export function SoftwareApplicationJsonLd() {
         },
       ],
     },
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '4.9',
-      ratingCount: '150',
-      bestRating: '5',
-      worstRating: '1',
-    },
     featureList: [
       '24/7 AI Receptionist & Auto-Responder',
       'Meta WhatsApp Business Cloud API Integration',
@@ -161,7 +154,7 @@ export function SoftwareApplicationJsonLd() {
       'Multi-Agent Shared Inbox with Staff Takeover',
       'Automated Reminders & Follow-Up Workflows',
       'Lead Qualification & CRM Synchronization',
-      'Encrypted & Isolated DPDP-Compliant Data Storage',
+      'Encrypted Credentials & Tenant-Isolated Data Controls',
     ],
   };
 

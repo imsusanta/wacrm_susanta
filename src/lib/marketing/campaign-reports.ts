@@ -93,9 +93,14 @@ export interface CampaignRateSummary {
   replies: number;
   failed: number;
   recipients: number;
+  clicks: number;
+  conversions: number;
+  attributedRevenue: number;
   deliveryRate: number;
   readRate: number;
   replyRate: number;
+  ctr: number;
+  conversionRate: number;
 }
 
 /** Safe percentage with one decimal. */
@@ -107,7 +112,7 @@ export function rate(numerator: number, denominator: number): number {
 /**
  * Aggregates campaign performance over an already-filtered set of
  * broadcasts. Delivery/read rates are relative to messages actually
- * sent; reply rate relative to delivered.
+ * sent; reply and CTR rates relative to delivered.
  */
 export function aggregateBroadcasts(
   broadcasts: Broadcast[]
@@ -120,6 +125,10 @@ export function aggregateBroadcasts(
       replies: acc.replies + (b.replied_count ?? 0),
       failed: acc.failed + (b.failed_count ?? 0),
       recipients: acc.recipients + (b.total_recipients ?? 0),
+      clicks: acc.clicks + (b.clicks_count ?? 0),
+      conversions: acc.conversions + (b.conversions_count ?? 0),
+      attributedRevenue:
+        acc.attributedRevenue + Number(b.attributed_revenue ?? 0),
     }),
     {
       sent: 0,
@@ -128,6 +137,9 @@ export function aggregateBroadcasts(
       replies: 0,
       failed: 0,
       recipients: 0,
+      clicks: 0,
+      conversions: 0,
+      attributedRevenue: 0,
     }
   );
 
@@ -137,29 +149,42 @@ export function aggregateBroadcasts(
     deliveryRate: rate(totals.delivered, totals.sent),
     readRate: rate(totals.read, totals.sent),
     replyRate: rate(totals.replies, totals.delivered),
+    ctr: rate(totals.clicks, totals.delivered),
+    conversionRate: rate(totals.conversions, totals.delivered),
   };
 }
 
 /** Client-safe CSV export of the report table (formula-injection safe). */
 export function buildReportCsv(broadcasts: Broadcast[]): string {
   const header =
-    'Campaign,Status,Sent,Delivered,Read,Replies,Failed,Delivery Rate %,Reply Rate %,Created';
-  const rows = broadcasts.map((b) =>
-    [
+    'Campaign,Status,Sent,Delivered,Read,Read Rate %,Replies,Reply Rate %,Clicks,CTR %,Conversions,Revenue,Created';
+  const rows = broadcasts.map((b) => {
+    const sent = b.sent_count ?? 0;
+    const delivered = b.delivered_count ?? 0;
+    const read = b.read_count ?? 0;
+    const replies = b.replied_count ?? 0;
+    const clicks = b.clicks_count ?? 0;
+    const conversions = b.conversions_count ?? 0;
+    const revenue = b.attributed_revenue ?? 0;
+
+    return [
       b.name,
       b.status,
-      b.sent_count ?? 0,
-      b.delivered_count ?? 0,
-      b.read_count ?? 0,
-      b.replied_count ?? 0,
-      b.failed_count ?? 0,
-      rate(b.delivered_count ?? 0, b.sent_count ?? 0),
-      rate(b.replied_count ?? 0, b.delivered_count ?? 0),
+      sent,
+      delivered,
+      read,
+      rate(read, sent),
+      replies,
+      rate(replies, delivered),
+      clicks,
+      rate(clicks, delivered),
+      conversions,
+      revenue,
       b.created_at,
     ]
       .map(csvEscape)
-      .join(',')
-  );
+      .join(',');
+  });
   return [header, ...rows].join('\n');
 }
 

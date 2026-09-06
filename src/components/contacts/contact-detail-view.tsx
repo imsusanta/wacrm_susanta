@@ -48,11 +48,13 @@ import {
   Clock,
   FileText,
   Sparkles,
+  PhoneCall,
 } from 'lucide-react';
 import { SendOutboundModal } from '@/components/contacts/send-outbound-modal';
 import { UploadPatientPdfModal } from '@/components/contacts/upload-patient-pdf-modal';
 import { ContactActivityTimeline } from '@/components/contacts/contact-activity-timeline';
 import { ContactTasksTab } from '@/components/contacts/contact-tasks-tab';
+import { CallCustomerModal } from '@/components/calling/call-customer-modal';
 import { getOrGeneratePatientId } from '@/lib/patients/id-generator';
 
 interface ContactDetailViewProps {
@@ -83,6 +85,7 @@ export function ContactDetailView({
   const [contactLoadError, setContactLoadError] = useState<string | null>(null);
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [outboundOpen, setOutboundOpen] = useState(false);
+  const [callCustomerModalOpen, setCallCustomerModalOpen] = useState(false);
   const [uploadPdfOpen, setUploadPdfOpen] = useState(false);
 
   // Details tab
@@ -603,6 +606,16 @@ export function ContactDetailView({
                   >
                     <MessageSquare className="size-3.5" />
                     WhatsApp
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCallCustomerModalOpen(true)}
+                    className="cursor-pointer gap-1 border-blue-500/40 bg-blue-500/10 text-xs font-semibold text-blue-600 hover:bg-blue-500/20 dark:text-blue-400"
+                    title="Call Customer with AI Voice Agent"
+                  >
+                    <PhoneCall className="size-3.5" />
+                    Call
                   </Button>
                   <Button
                     size="sm"
@@ -1205,6 +1218,16 @@ export function ContactDetailView({
           onSuccess={() => {}}
         />
       )}
+      <CallCustomerModal
+        open={callCustomerModalOpen}
+        onOpenChange={setCallCustomerModalOpen}
+        contactId={contact?.id}
+        initialName={contact?.name || ''}
+        initialPhone={contact?.phone || ''}
+        onCallInitiated={() => {
+          onUpdated();
+        }}
+      />
     </Sheet>
   );
 }

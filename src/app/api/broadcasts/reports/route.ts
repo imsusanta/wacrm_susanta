@@ -65,12 +65,79 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     const broadcasts = (data ?? []) as Broadcast[];
-    const summary = aggregateBroadcasts(broadcasts);
+
+    // Compute live conversion and revenue attribution from appointments and invoices
+    const campaignIds = broadcasts.map((b) => b.id);
+    const apptsByCampaign: Record<string, number> = {};
+    const apptIds: string[] = [];
+
+    if (campaignIds.length > 0) {
+      const { data: appts } = await supabase
+        .from('appointments')
+        .select('id, campaign_id')
+        .in('campaign_id', campaignIds);
+
+      if (appts) {
+        for (const a of appts) {
+          if (a.campaign_id) {
+            apptsByCampaign[a.campaign_id] =
+              (apptsByCampaign[a.campaign_id] || 0) + 1;
+            apptIds.push(a.id);
+          }
+        }
+      }
+    }
+
+    const revenueByCampaign: Record<string, number> = {};
+    if (apptIds.length > 0) {
+      const { data: invoices } = await supabase
+        .from('billing_invoices')
+        .select('appointment_id, amount, status')
+        .in('appointment_id', apptIds)
+        .eq('status', 'paid');
+
+      if (invoices) {
+        const apptToCamp = new Map<string, string>();
+        if (campaignIds.length > 0) {
+          const { data: appts } = await supabase
+            .from('appointments')
+            .select('id, campaign_id')
+            .in('campaign_id', campaignIds);
+          for (const a of appts || []) {
+            if (a.campaign_id) apptToCamp.set(a.id, a.campaign_id);
+          }
+        }
+        for (const inv of invoices) {
+          const campId = inv.appointment_id
+            ? apptToCamp.get(inv.appointment_id)
+            : undefined;
+          if (campId) {
+            revenueByCampaign[campId] =
+              (revenueByCampaign[campId] || 0) + Number(inv.amount || 0);
+          }
+        }
+      }
+    }
+
+    const enrichedBroadcasts = broadcasts.map((b) => {
+      const liveConversions = apptsByCampaign[b.id] || 0;
+      const liveRevenue = revenueByCampaign[b.id] || 0;
+      return {
+        ...b,
+        conversions_count: Math.max(b.conversions_count || 0, liveConversions),
+        attributed_revenue: Math.max(
+          Number(b.attributed_revenue || 0),
+          liveRevenue
+        ),
+      };
+    });
+
+    const summary = aggregateBroadcasts(enrichedBroadcasts);
 
     return NextResponse.json(
       {
         data: {
-          campaigns: broadcasts,
+          campaigns: enrichedBroadcasts,
           summary,
           range:
             preset === 'all'

@@ -15,7 +15,7 @@
 -- message_reactions — one row per (message, actor)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.message_reactions (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   message_id uuid NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
   conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   actor_type text NOT NULL CHECK (actor_type IN ('customer', 'agent')),
@@ -37,12 +37,18 @@ DROP POLICY IF EXISTS "message_reactions_tenant_isolation" ON public.message_rea
 CREATE POLICY "message_reactions_tenant_isolation" ON public.message_reactions
   FOR ALL TO authenticated, service_role
   USING (
-    is_account_member(account_id)
-    OR (SELECT current_setting('role', true)) = 'service_role'
+    EXISTS (
+      SELECT 1 FROM public.conversations c
+      WHERE c.id = message_reactions.conversation_id
+        AND (is_account_member(c.account_id, 'viewer'::account_role_enum) OR (SELECT current_setting('role', true)) = 'service_role')
+    )
   )
   WITH CHECK (
-    is_account_member(account_id)
-    OR (SELECT current_setting('role', true)) = 'service_role'
+    EXISTS (
+      SELECT 1 FROM public.conversations c
+      WHERE c.id = message_reactions.conversation_id
+        AND (is_account_member(c.account_id, 'viewer'::account_role_enum) OR (SELECT current_setting('role', true)) = 'service_role')
+    )
   );
 
 DO $$
@@ -61,7 +67,7 @@ END $$;
 -- message_templates — WhatsApp template library
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.message_templates (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id uuid NOT NULL,
   user_id uuid,
   name text NOT NULL,
@@ -83,7 +89,7 @@ DROP POLICY IF EXISTS "message_templates_select" ON public.message_templates;
 CREATE POLICY "message_templates_select" ON public.message_templates
   FOR SELECT TO authenticated
   USING (
-    is_account_member(account_id)
+    is_account_member(account_id, 'viewer'::account_role_enum)
     OR (user_id = auth.uid())
   );
 

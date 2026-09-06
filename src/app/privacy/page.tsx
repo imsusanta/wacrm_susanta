@@ -16,7 +16,7 @@ import { BreadcrumbJsonLd } from '@/components/seo/json-ld';
 export const metadata: Metadata = {
   title: 'Privacy Policy — Helpa Studio',
   description:
-    'Meta & GDPR Compliant Privacy Policy for Helpa WhatsApp AI Receptionist & CRM. Multi-tenant encryption, zero data selling, and DPDP compliance.',
+    'Privacy policy for Helpa WhatsApp AI Receptionist & CRM, including data handling, tenant isolation, encryption controls, retention, and deletion requests.',
   alternates: {
     canonical: 'https://helpa.studio/privacy',
   },
@@ -66,7 +66,7 @@ export default function PrivacyPolicyPage() {
         <div className="mb-12 border-b border-slate-200 pb-8">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
             <Shield className="h-3.5 w-3.5 text-emerald-600" />
-            <span>Meta & GDPR Compliant Privacy Policy</span>
+            <span>Privacy & Data Protection Policy</span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
             Privacy Policy
@@ -197,8 +197,8 @@ export default function PrivacyPolicyPage() {
               </li>
               <li>
                 <strong>Encrypted Token Storage:</strong> Meta access tokens and
-                system credentials are encrypted using military-grade
-                AES-256-GCM authenticated encryption at rest.
+                system credentials are encrypted using AES-256-GCM authenticated
+                encryption at rest.
               </li>
             </ul>
           </section>

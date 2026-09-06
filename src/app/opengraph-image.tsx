@@ -125,9 +125,9 @@ export default async function Image() {
             fontWeight: 500,
           }}
         >
-          24/7 WhatsApp AI Receptionist for Clinics, Salons & Coaching
-          Institutes. Replies in 2 seconds, schedules appointments & qualifies
-          leads.
+          WhatsApp AI receptionist for independent clinics. Answer approved
+          patient FAQs, coordinate appointments, send reminders, and hand off to
+          staff.
         </p>
       </div>
 
@@ -147,7 +147,7 @@ export default async function Image() {
             color: '#E2E8F0',
           }}
         >
-          ⚡ 2s Instant Reply
+          ⚡ 24/7 Patient Replies
         </div>
         <div
           style={{
@@ -179,7 +179,7 @@ export default async function Image() {
             color: '#E2E8F0',
           }}
         >
-          🔒 DPDP Compliant
+          🔒 Privacy Controls
         </div>
       </div>
     </div>,

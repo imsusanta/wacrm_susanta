@@ -76,7 +76,7 @@ const DEFAULT_DISPLAY_PLANS: DisplayPlan[] = [
       'Custom AI Training & Workflows',
       'Visual Flow Builder & Webhooks',
       'Dedicated Account Manager',
-      'SLA & On-premise Support',
+      'Deployment & SLA Review',
     ],
   },
 ];
@@ -125,10 +125,10 @@ export function LandingPricingSection() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto mb-10 max-w-3xl text-center">
           <span className="mb-3 inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-            Clinic & Business Plans
+            Clinic Plans
           </span>
           <h2 className="text-3xl font-extrabold tracking-tight text-[#110E3D] sm:text-4xl">
-            Choose the capacity your business needs
+            Choose the capacity your clinic needs
           </h2>
           <p className="mt-3 text-base text-slate-600">
             Setup and monthly software fees are shown transparently. Meta

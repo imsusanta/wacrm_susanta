@@ -11,12 +11,12 @@ import {
 } from '@/components/seo/json-ld';
 
 export const metadata: Metadata = {
-  title: 'Data Security, Encryption & DPDP Act 2023 Compliance',
+  title: 'Data Security, Encryption & Privacy Controls',
   description:
-    'Learn how Helpa protects customer data, clinic records, and WhatsApp credentials with AES-256-GCM encryption, row-level tenant isolation, and DPDP Act compliance.',
+    'Learn how Helpa protects clinic records and WhatsApp credentials with AES-256-GCM encryption, tenant isolation, authorization, and operational safeguards.',
   keywords: [
     'WhatsApp CRM Security',
-    'DPDP Act 2023 Compliance CRM India',
+    'DPDP Readiness CRM India',
     'Healthcare Data Security WhatsApp',
     'Encrypted WhatsApp CRM Meta API',
     'PostgreSQL Row-Level Security CRM',
@@ -25,9 +25,9 @@ export const metadata: Metadata = {
     canonical: 'https://helpa.studio/security',
   },
   openGraph: {
-    title: 'Enterprise Data Security & DPDP Compliance | Helpa Studio',
+    title: 'Data Security & Privacy Controls | Helpa Studio',
     description:
-      'Multi-tenant database isolation, AES-256-GCM encryption, and DPDP Act 2023 compliance.',
+      'Multi-tenant database isolation, AES-256-GCM credential encryption, and documented privacy controls.',
     url: 'https://helpa.studio/security',
   },
 };
@@ -41,7 +41,7 @@ const SECURITY_FAQS = [
   {
     question: 'Where is customer data hosted?',
     answer:
-      'Helpa utilizes enterprise-grade secure data centers in India in accordance with the Digital Personal Data Protection (DPDP) Act 2023.',
+      'Hosting location depends on the infrastructure selected for your deployment. Confirm the active region, subprocessors, retention terms, and contractual requirements before production rollout.',
   },
   {
     question: 'Are conversations used to train public AI models?',
@@ -62,7 +62,7 @@ export default function SecurityPage() {
       <ServiceJsonLd
         name="Helpa Enterprise Security Architecture"
         serviceType="Data Protection & Encryption Standards"
-        description="Comprehensive security posture, multi-tenant isolation, and DPDP Act compliance for Indian healthcare and service businesses."
+        description="Documented security controls, tenant isolation, credential encryption, and privacy-readiness guidance for clinic workflows."
         url="https://helpa.studio/security"
       />
       <FaqJsonLd items={SECURITY_FAQS} />
@@ -84,9 +84,9 @@ export default function SecurityPage() {
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
               When handling sensitive clinic consultations, patient inquiries,
-              and customer data, security isn&apos;t an afterthought. Helpa
-              enforces military-grade encryption and tenant isolation at every
-              layer.
+              and customer data, security isn&apos;t an afterthought. Helpa uses
+              authenticated encryption, authorization checks, and tenant
+              isolation controls across the application.
             </p>
           </div>
         </section>
@@ -147,7 +147,7 @@ export default function SecurityPage() {
         <section className="mx-auto mt-24 max-w-4xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-extrabold text-[#110E3D]">
-              Security & Compliance FAQs
+              Security & Privacy FAQs
             </h2>
           </div>
           <div className="mt-10 space-y-4">

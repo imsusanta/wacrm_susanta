@@ -10,6 +10,7 @@ import { getAdminClient } from '@/lib/db/server';
 import type { AiToolDefinition, AiExecutionContext } from './types';
 import { registerTourPackageTools } from './tour-package-tools';
 import { resolveIndustryAlias } from '@/core/modules/terminology';
+import { sendNotification } from '@/core/notifications';
 
 class AiToolRegistry {
   private tools: Map<string, AiToolDefinition> = new Map();
@@ -625,6 +626,14 @@ aiToolRegistry.register({
       };
     }
 
+    // Non-blocking push notification alert to staff
+    sendNotification(context.accountId, {
+      title: '📅 New Appointment Booked',
+      body: `${docOrService} on ${date} at ${time}`,
+      url: `/appointments`,
+      channel: 'push',
+    }).catch(() => {});
+
     return {
       success: true,
       data: {
@@ -825,6 +834,14 @@ aiToolRegistry.register({
       status: 'delivered',
       created_at: new Date().toISOString(),
     });
+
+    // Non-blocking push alert to staff
+    sendNotification(context.accountId, {
+      title: '🚨 Human Handoff Requested',
+      body: reason,
+      url: `/inbox?conversation=${context.conversationId}`,
+      channel: 'push',
+    }).catch(() => {});
 
     return {
       success: true,

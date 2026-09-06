@@ -55,9 +55,9 @@ const CLINIC_FAQS = [
       'No. Helpa strictly manages administrative tasks such as doctor availability, slot booking, clinic hours, fees, and location FAQs. Clinical decisions and prescriptions remain with qualified doctors.',
   },
   {
-    question: 'Is patient data secure and DPDP compliant?',
+    question: 'What privacy and security controls does Helpa provide?',
     answer:
-      'Yes. Helpa is built with strict multi-tenant isolation, AES-256-GCM encryption for all credentials, and operates in full compliance with the Digital Personal Data Protection (DPDP) Act 2023.',
+      'Helpa includes tenant isolation, role-based access, and AES-256-GCM encryption for sensitive integration credentials. Clinics remain responsible for legal review, consent, retention, and deployment-specific compliance obligations.',
   },
 ];
 
@@ -100,8 +100,9 @@ export default function ClinicSolutionPage() {
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
               Never let an after-hours patient inquiry go unanswered. Helpa
-              answers OPD queries in 2 seconds, confirms doctor slots, sends
-              reminder slips, and cuts no-shows by 45%.
+              handles routine OPD questions, confirms available doctor slots,
+              sends reminder slips, and gives staff a shared conversation
+              history.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
@@ -145,8 +146,8 @@ export default function ClinicSolutionPage() {
                 Reduced Front-Desk Workload
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                Eliminate 80% of repetitive calls asking for clinic address,
-                doctor fees, consultation days, and parking information.
+                Automate repetitive questions about clinic address, doctor fees,
+                consultation days, and appointment preparation.
               </p>
             </div>
 
@@ -155,11 +156,11 @@ export default function ClinicSolutionPage() {
                 <ShieldCheck className="h-6 w-6" />
               </div>
               <h2 className="text-xl font-bold text-[#110E3D]">
-                Patient Privacy & DPDP Guard
+                Patient Privacy Controls
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                End-to-end encrypted storage, role-based access, and Indian data
-                protection compliance ensure full regulatory peace of mind.
+                Tenant isolation, role-based access, encrypted credentials, and
+                documented deletion workflows support a safer rollout.
               </p>
             </div>
           </div>

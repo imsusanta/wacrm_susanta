@@ -520,8 +520,8 @@ describe('AI Receptionist Auto-Reply Decision Engine & Automations Coexistence',
     expect(engineSendText).not.toHaveBeenCalled();
   });
 
-  // Test 10: 30-minute auto-resume
-  it('Test 10: Auto-resumes AI when chat was disabled but inactive for >30 minutes', async () => {
+  // Test 10: Strict deterministic toggle — no auto-resume after >30 minutes
+  it('Test 10: Keeps AI disabled even when chat was inactive for >30 minutes (no auto-resume)', async () => {
     mockState.conversationData.ai_chat_enabled = false;
     mockState.conversationData.ai_handoff_required = true;
     mockState.conversationData.ai_reply_count = 0;
@@ -553,13 +553,12 @@ describe('AI Receptionist Auto-Reply Decision Engine & Automations Coexistence',
       contactId: 'cnt-1',
     });
 
-    // Should have auto-resumed and sent the AI reply
-    expect(mockState.conversationData.ai_chat_enabled).toBe(true);
-    expect(mockState.conversationData.ai_handoff_required).toBe(false);
-    expect(engineSendText).toHaveBeenCalled();
+    // Must stay disabled; no automatic resume
+    expect(mockState.conversationData.ai_chat_enabled).toBe(false);
+    expect(engineSendText).not.toHaveBeenCalled();
   });
 
-  it('Test 11: Keeps AI disabled when chat was disabled and activity was <30 minutes ago', async () => {
+  it('Test 11: Keeps AI disabled when chat was disabled and activity was recent', async () => {
     mockState.conversationData.ai_chat_enabled = false;
     mockState.conversationData.ai_handoff_required = true;
     mockState.conversationData.ai_reply_count = 0;

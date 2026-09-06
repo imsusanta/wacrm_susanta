@@ -65,6 +65,13 @@ export interface AiContextBundle {
   knowledgeSnippets: string[];
   availableTools: AiToolDefinition[];
   businessName?: string;
+  detectedLanguage?: {
+    code: string;
+    name: string;
+    script: string;
+    isRegionalIndian: boolean;
+    confidence: number;
+  };
 }
 
 export interface AiExecutionResult {
@@ -84,6 +91,13 @@ export interface AiExecutionResult {
   }>;
   needsHumanHandoff: boolean;
   handoffReason?: string;
+  detectedLanguage?: {
+    code: string;
+    name: string;
+    script: string;
+    isRegionalIndian: boolean;
+    confidence: number;
+  };
   timestamp: string;
 }
 

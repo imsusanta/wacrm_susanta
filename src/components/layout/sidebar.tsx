@@ -82,6 +82,7 @@ export function Sidebar({
     marketing: false,
     whatsapp: false,
     'automation-ai': false,
+    calling: true,
     billing: false,
     admin: false,
     settings: false,

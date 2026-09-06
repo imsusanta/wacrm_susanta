@@ -87,9 +87,9 @@ export default function AiReceptionistFeaturePage() {
               </span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
-              Never let a late-night customer or weekend patient wait. Helpa
-              answers within 2 seconds, resolves pricing and service FAQs, and
-              books appointments flawlessly.
+              Give patients a consistent response after hours. Helpa answers
+              approved pricing and service FAQs, supports appointment booking,
+              and hands complex conversations to clinic staff.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
@@ -120,7 +120,8 @@ export default function AiReceptionistFeaturePage() {
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-slate-600">
                 Feed your clinic timings, fee cards, doctor bios, and PDFs. The
-                AI uses only your verified content for zero hallucinations.
+                AI grounds replies in your approved content and can escalate
+                when a question requires staff review.
               </p>
             </div>
 
@@ -129,11 +130,11 @@ export default function AiReceptionistFeaturePage() {
                 <Zap className="h-6 w-6" />
               </div>
               <h2 className="text-xl font-bold text-[#110E3D]">
-                Sub-2-Second Replies
+                Fast, Consistent Replies
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                Speed wins deals. While competitors take 4 hours to reply, Helpa
-                engages prospects while interest is at its absolute peak.
+                Respond to routine patient questions promptly without relying on
+                a receptionist being available for every incoming message.
               </p>
             </div>
 

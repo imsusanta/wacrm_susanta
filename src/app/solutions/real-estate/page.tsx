@@ -93,8 +93,8 @@ export default function RealEstateSolutionPage() {
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
               Speed to lead decides real estate deals. Helpa engages property
-              leads within 2 seconds of submitting a form, filters budgets,
-              delivers brochures, and schedules site tours.
+              leads promptly after they submit a form, filters budgets, delivers
+              brochures, and schedules site tours.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link

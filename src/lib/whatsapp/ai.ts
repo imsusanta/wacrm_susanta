@@ -111,64 +111,8 @@ export async function triggerAiResponse(
     return;
   }
 
-  // Auto-resume check: If AI is disabled (e.g. following a human handoff) and
-  // the conversation is unassigned, check if the last activity was > 30 minutes ago.
-  // If staff has been inactive for > 30 minutes, automatically resume AI auto-pilot.
-  const fetchedMessages = convContext.messages;
-  const HANDOFF_AUTO_RESUME_MS = 30 * 60 * 1000;
-  const isAssigned = Boolean(
-    conversation.assigned_agent_id || conversation.assignedAgentId
-  );
-  const isAiDisabled =
-    conversation.ai_chat_enabled === false ||
-    conversation.ai_autoreply_disabled === true ||
-    conversation.is_ai_enabled === false ||
-    conversation.ai_handoff_required === true;
-
-  if (isAiDisabled && !isAssigned) {
-    const prevMsg =
-      fetchedMessages.length > 1 ? fetchedMessages[1] : fetchedMessages[0];
-    const lastActivityTime = prevMsg?.created_at
-      ? new Date(prevMsg.created_at).getTime()
-      : conversation.last_message_at
-        ? new Date(conversation.last_message_at as string).getTime()
-        : 0;
-
-    if (
-      lastActivityTime > 0 &&
-      Date.now() - lastActivityTime > HANDOFF_AUTO_RESUME_MS
-    ) {
-      console.log(
-        `[AI Assistant] Auto-resuming AI for conversation ${conversationId} after >30m inactivity.`
-      );
-      conversation.ai_chat_enabled = true;
-      conversation.ai_handoff_required = false;
-      conversation.ai_autoreply_disabled = false;
-      conversation.is_ai_enabled = true;
-
-      await db
-        .from('conversations')
-        .update({
-          ai_chat_enabled: true,
-          ai_handoff_required: false,
-          ai_autoreply_disabled: false,
-        })
-        .eq('id', conversationId);
-
-      await db.from('messages').insert({
-        account_id: accountId,
-        conversation_id: conversationId,
-        direction: 'outbound',
-        sender_type: 'bot',
-        content_type: 'text',
-        content_text:
-          '[System] AI auto-pilot resumed automatically after 30 minutes of staff inactivity.',
-        message_id: `system-resume-${conversationId}-${Date.now()}`,
-        status: 'delivered',
-        created_at: new Date().toISOString(),
-      });
-    }
-  }
+  // AI on/off state is strictly deterministic and controlled by explicit toggle;
+  // it does not auto-resume without staff action.
 
   const skipDecision = shouldSkipAiConversation(conversation);
   if (skipDecision.skip) {

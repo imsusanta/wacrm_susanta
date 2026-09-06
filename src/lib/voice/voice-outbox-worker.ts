@@ -4,6 +4,7 @@ import { voiceRepository } from '@/lib/db/repositories';
 import { resolveTenantVoiceConfig } from '@/core/providers/voice/credential-resolver';
 import { getVoiceProvider } from '@/core/providers/voice/provider-factory';
 import { VoiceProviderError } from '@/core/providers/voice/voice-provider.interface';
+import { PostCallPipeline } from '@/lib/voice/post-call-pipeline';
 
 export interface VoiceOutboxMetrics {
   queuedCount: number;
@@ -169,6 +170,35 @@ export class VoiceOutboxWorker {
               failureCode: event.failureCode,
               failureMessageSanitized: event.failureMessageSanitized,
             });
+
+            // Trigger asynchronous, non-blocking post-call lead extraction & CRM pipeline
+            if (event.transcript || event.status === 'completed') {
+              try {
+                const existingCall = await voiceRepository.findCallByExternalId(
+                  accountId,
+                  event.externalCallId
+                );
+                await PostCallPipeline.processCall({
+                  accountId,
+                  externalCallId: event.externalCallId,
+                  transcript:
+                    event.transcript || (existingCall?.transcript as string) || '',
+                  callerPhone: event.patientPhone,
+                  direction: event.direction || 'outbound',
+                  durationSeconds: event.durationSeconds,
+                  agentId: event.externalAgentId,
+                  sttProvider: providerName,
+                  ttsProvider: providerName,
+                  existingContactId: existingCall?.contactId as string,
+                  existingLeadId: existingCall?.leadId as string,
+                });
+              } catch (pipelineErr) {
+                console.warn(
+                  '[VoiceOutboxWorker] Post-call intelligence pipeline non-fatal warning:',
+                  pipelineErr
+                );
+              }
+            }
           }
 
           await db()

@@ -86,7 +86,7 @@ export default async function Image() {
             color: '#FFFFFF',
           }}
         >
-          Never Miss Another WhatsApp Customer.
+          A Calmer Clinic Front Desk on WhatsApp.
         </h1>
         <p
           style={{
@@ -97,8 +97,8 @@ export default async function Image() {
             fontWeight: 500,
           }}
         >
-          24/7 AI Receptionist for Clinics, Salons & Coaching Institutes in
-          India.
+          AI receptionist for patient FAQs, appointments, reminders, and staff
+          handoff.
         </p>
       </div>
 

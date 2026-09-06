@@ -10,6 +10,7 @@ import { getIndustryModulePort } from '../modules/industry-port';
 import { type AiMessage } from './provider';
 import { executeAiCompletionWithFallback } from './resolver';
 import { buildAiContextBundle } from './context-builder';
+import { detectRegionalLanguage } from './regional-language';
 import { aiToolRegistry } from './tools';
 import type {
   AiExecutionContext,
@@ -35,6 +36,8 @@ export async function executeAiPipeline({
 
   // 1. Build Layered Context Bundle
   const bundle = await buildAiContextBundle(context);
+  const detectedLanguage =
+    bundle.detectedLanguage ?? detectRegionalLanguage(userMessage);
 
   // 2. Safety Pre-screening driven by Industry Manifest (via the Core port)
   const lowerMsg = userMessage.toLowerCase();
@@ -65,6 +68,13 @@ export async function executeAiPipeline({
       provider: 'core-safety',
       needsHumanHandoff: true,
       handoffReason: 'Emergency pre-screening trigger',
+      detectedLanguage: {
+        code: detectedLanguage.code,
+        name: detectedLanguage.name,
+        script: detectedLanguage.script,
+        isRegionalIndian: detectedLanguage.isRegionalIndian,
+        confidence: detectedLanguage.confidence,
+      },
       timestamp: new Date().toISOString(),
     };
   }
@@ -181,6 +191,13 @@ export async function executeAiPipeline({
       toolCallsExecuted.length > 0 ? toolCallsExecuted : undefined,
     needsHumanHandoff,
     handoffReason,
+    detectedLanguage: {
+      code: detectedLanguage.code,
+      name: detectedLanguage.name,
+      script: detectedLanguage.script,
+      isRegionalIndian: detectedLanguage.isRegionalIndian,
+      confidence: detectedLanguage.confidence,
+    },
     timestamp: new Date().toISOString(),
   };
 }

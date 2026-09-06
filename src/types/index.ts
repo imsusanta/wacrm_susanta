@@ -640,6 +640,9 @@ export interface Broadcast {
   cta_url?: string;
   recurrence?: 'none' | 'weekly' | 'monthly' | 'yearly';
   ai_suggested?: boolean;
+  clicks_count?: number;
+  conversions_count?: number;
+  attributed_revenue?: number;
 }
 
 export interface BroadcastRecipient {
@@ -656,6 +659,8 @@ export interface BroadcastRecipient {
   delivered_at?: string;
   read_at?: string;
   replied_at?: string;
+  button_clicked?: boolean;
+  clicked_at?: string;
   error_message?: string;
   /**
    * Meta's message id, persisted when the broadcast send succeeds so

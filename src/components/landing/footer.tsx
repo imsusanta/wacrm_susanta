@@ -19,10 +19,9 @@ export function LandingFooter() {
               </span>
             </Link>
             <p className="max-w-sm text-xs leading-relaxed text-slate-500">
-              The 24/7 WhatsApp AI communication and receptionist platform for
-              clinics, coaching classes, tutors, salons, and real estate.
-              Automate replies, bookings, and reminders on official WhatsApp
-              Cloud API.
+              A WhatsApp AI receptionist and patient communication workspace for
+              independent clinics. Handle approved FAQs, appointments,
+              reminders, and staff takeover on the official WhatsApp Cloud API.
             </p>
             <div className="text-[11px] text-slate-400">
               Built with ❤️ by{' '}
@@ -42,6 +41,14 @@ export function LandingFooter() {
                   className="transition-colors hover:text-[#110E3D]"
                 >
                   AI Receptionist
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/features/ai-calling"
+                  className="transition-colors hover:text-[#110E3D]"
+                >
+                  AI Calling Agent
                 </Link>
               </li>
               <li>
@@ -82,7 +89,7 @@ export function LandingFooter() {
           {/* Industry Modules */}
           <div className="space-y-3">
             <h4 className="text-[11px] font-bold tracking-wider text-[#110E3D] uppercase">
-              Industries
+              For Clinics
             </h4>
             <ul className="space-y-2">
               <li>
@@ -90,31 +97,31 @@ export function LandingFooter() {
                   href="/solutions/clinics"
                   className="transition-colors hover:text-[#110E3D]"
                 >
-                  Clinics & Healthcare
+                  Clinic Solution
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/solutions/salons"
+                  href="/features/appointment-booking"
                   className="transition-colors hover:text-[#110E3D]"
                 >
-                  Salons & Spas
+                  Appointment Workflow
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/solutions/coaching"
+                  href="/features/whatsapp-crm"
                   className="transition-colors hover:text-[#110E3D]"
                 >
-                  Coaching & Tutors
+                  Shared Team Inbox
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/solutions/real-estate"
+                  href="/pricing"
                   className="transition-colors hover:text-[#110E3D]"
                 >
-                  Real Estate
+                  Clinic Pricing
                 </Link>
               </li>
               <li>
@@ -191,11 +198,11 @@ export function LandingFooter() {
             © {new Date().getFullYear()} Helpa Studio. All rights reserved.
           </div>
           <div className="flex items-center gap-4">
-            <span>Official Meta Cloud API Verified</span>
+            <span>Built on the official Meta Cloud API</span>
             <span>•</span>
             <span>AES-256-GCM Encrypted</span>
             <span>•</span>
-            <span>DPDP Act 2023 Compliant</span>
+            <span>Privacy controls documented</span>
           </div>
         </div>
       </div>

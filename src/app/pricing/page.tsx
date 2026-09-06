@@ -12,7 +12,7 @@ import {
 export const metadata: Metadata = {
   title: 'Transparent Pricing Plans & Free Trial',
   description:
-    'Affordable and transparent WhatsApp AI Receptionist & CRM pricing for clinics, salons, coaching centers, and Indian service businesses. Free trial included.',
+    'Transparent WhatsApp AI receptionist and patient communication pricing for independent clinics. Free trial included.',
   keywords: [
     'WhatsApp CRM Pricing India',
     'WhatsApp AI Receptionist Cost',

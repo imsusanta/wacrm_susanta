@@ -12,7 +12,7 @@ import {
 export const metadata: Metadata = {
   title: 'Helpa vs WATI — Best WhatsApp AI Receptionist & CRM Alternative',
   description:
-    'Compare Helpa and WATI for Indian clinics, salons, and local businesses. See why Helpa offers faster 2-second AI replies, built-in appointment scheduling, and transparent Indian pricing.',
+    'Compare Helpa and WATI for Indian clinics. Review AI receptionist workflows, appointment scheduling, shared inbox tools, and transparent pricing.',
   keywords: [
     'WATI Alternative India',
     'Helpa vs WATI',

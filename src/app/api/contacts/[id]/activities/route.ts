@@ -67,6 +67,7 @@ export async function GET(
       appointmentsRes,
       dealsRes,
       followupsRes,
+      callsRes,
     ] = await Promise.all([
       // A. Conversations & Recent Messages
       supabase
@@ -108,9 +109,55 @@ export async function GET(
         .or(`patient_id.eq.${contactId},id.eq.${contactId}`)
         .order('created_at', { ascending: false })
         .limit(50),
+
+      // F. Voice Calls
+      supabase
+        .from('calls')
+        .select(
+          'id, external_call_id, direction, status, duration_seconds, outcome, summary, transcript, lead_score, intent, recording_url, created_at, started_at'
+        )
+        .eq('account_id', context.accountId)
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false })
+        .limit(50),
     ]);
 
     const activities: ActivityItem[] = [];
+
+    // Process Calls
+    if (callsRes.data) {
+      for (const call of callsRes.data) {
+        const durationMin = call.duration_seconds
+          ? `${Math.floor(call.duration_seconds / 60)}m ${call.duration_seconds % 60}s`
+          : '0s';
+        const intentText = call.intent ? ` • Intent: ${call.intent}` : '';
+        const scoreText = call.lead_score ? ` • Score: ${call.lead_score}/100` : '';
+        const summaryText =
+          call.summary ||
+          (call.status === 'completed'
+            ? 'Call completed successfully.'
+            : `Call status: ${call.status}`);
+
+        activities.push({
+          id: `call-${call.id}`,
+          type: 'call',
+          title: `AI Call (${call.direction === 'inbound' ? 'Inbound' : 'Outbound'}) — ${durationMin}`,
+          description: `${summaryText}${intentText}${scoreText}`,
+          created_at: call.started_at || call.created_at,
+          metadata: {
+            callId: call.id,
+            externalCallId: call.external_call_id,
+            duration: call.duration_seconds,
+            leadScore: call.lead_score,
+            intent: call.intent,
+            outcome: call.outcome,
+            transcript: call.transcript,
+            recordingUrl: call.recording_url,
+          },
+        });
+      }
+    }
+
 
     // Process Notes
     if (notesRes.data) {

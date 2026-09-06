@@ -51,6 +51,7 @@ export function ContactActivityTimeline({
 
   const filteredActivities = activities.filter((act) => {
     if (filterType === 'all') return true;
+    if (filterType === 'calls') return act.type === 'call';
     if (filterType === 'messages')
       return (
         act.type === 'whatsapp_inbound' || act.type === 'whatsapp_outbound'
@@ -179,6 +180,7 @@ export function ContactActivityTimeline({
           {(
             [
               { id: 'all', label: 'All' },
+              { id: 'calls', label: 'AI Calls' },
               { id: 'messages', label: 'WhatsApp' },
               { id: 'notes', label: 'Notes' },
               { id: 'appointments', label: 'Appointments' },

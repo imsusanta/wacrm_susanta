@@ -35,7 +35,7 @@ const BROADCAST_FAQS = [
   {
     question: 'Are broadcasts sent via official Meta approved templates?',
     answer:
-      'Yes. Helpa uses official Meta Cloud API template messaging to ensure 100% compliance with WhatsApp Business Policies and protect against phone number bans.',
+      'Helpa sends template campaigns through the official Meta Cloud API. Template approval, recipient consent, message quality, and account standing remain subject to Meta policies and review.',
   },
   {
     question: 'Can we segment contacts before broadcasting?',
@@ -77,12 +77,12 @@ export default function AutomatedBroadcastsFeaturePage() {
           <div className="mx-auto max-w-4xl text-center">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-1.5 text-xs font-black text-emerald-800 shadow-sm">
               <Megaphone className="h-4 w-4 text-emerald-600" />
-              Meta-Compliant Broadcast Engine
+              Official Meta Template Messaging
             </div>
             <h1 className="text-4xl font-black tracking-tight text-[#110E3D] sm:text-5xl lg:text-6xl">
-              High-Converting WhatsApp Campaigns with{' '}
+              Targeted WhatsApp Campaigns with{' '}
               <span className="bg-gradient-to-r from-[#075E54] via-[#25D366] to-[#075E54] bg-clip-text text-transparent">
-                98% Open Rates
+                Measurable Delivery Reports
               </span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600">

@@ -251,6 +251,7 @@ export function MessageThread({
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
+  const [reactionsAvailable, setReactionsAvailable] = useState(true);
   // Purely visual spin state for the manual-refresh button. The actual
   // refetch is fire-and-forget through `onRefresh` (which bumps the
   // parent's resyncToken); the 700ms spin is just feedback so the click
@@ -474,9 +475,19 @@ export function MessageThread({
         .eq('conversation_id', conversationId);
       if (cancelled) return;
       if (error) {
+        const missingTable =
+          error.code === 'PGRST205' ||
+          error.code === '42P01' ||
+          error.message?.includes('message_reactions');
+        if (missingTable) {
+          setReactions([]);
+          setReactionsAvailable(false);
+          return;
+        }
         console.error('Failed to fetch reactions:', error);
         return;
       }
+      setReactionsAvailable(true);
       setReactions((data as MessageReaction[]) ?? []);
     })();
 
@@ -1144,7 +1155,7 @@ export function MessageThread({
       {/* Header — solid card surface sits on top of the doodle so the
           name/avatar/dropdowns stay legible. */}
       <div className="border-border bg-card flex items-center justify-between gap-2 border-b px-3 py-3 sm:px-4">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           {/* Back-to-list button — mobile only. Hidden on lg+ where the
               conversation list is always visible next to the thread. */}
           {onBack && (
@@ -1189,7 +1200,7 @@ export function MessageThread({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-2">
           {/* Contact-panel toggle — desktop only. The contact sidebar
               eats a chunk of horizontal width that crowds the thread on
               smaller laptops; this lets agents reclaim it when they just
@@ -1229,9 +1240,7 @@ export function MessageThread({
               disabled={isRefreshing}
               aria-label="Refresh conversation"
               title="Refresh"
-              className={cn(
-                'text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-60'
-              )}
+              className="text-muted-foreground hover:bg-muted hover:text-foreground hidden h-7 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-60 sm:inline-flex"
             >
               <RefreshCw
                 className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')}
@@ -1255,7 +1264,7 @@ export function MessageThread({
                 : 'Enable AI Assistant'
             }
             className={cn(
-              'inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium transition-all duration-200',
+              'inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 text-[11px] font-medium transition-all duration-200 sm:px-2.5',
               conversation.ai_chat_enabled
                 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400'
                 : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -1267,7 +1276,9 @@ export function MessageThread({
                 conversation.ai_chat_enabled && 'animate-pulse'
               )}
             />
-            <span>AI {conversation.ai_chat_enabled ? 'ON' : 'OFF'}</span>
+            <span className="hidden sm:inline">
+              AI {conversation.ai_chat_enabled ? 'ON' : 'OFF'}
+            </span>
           </button>
 
           {/* Status dropdown */}
@@ -1425,9 +1436,13 @@ export function MessageThread({
                         key={msg.id}
                         message={msg}
                         onReply={() => handleStartReply(msg)}
-                        onReact={(emoji) => {
-                          if (emoji) void postReaction(msg.id, emoji);
-                        }}
+                        onReact={
+                          reactionsAvailable
+                            ? (emoji) => {
+                                if (emoji) void postReaction(msg.id, emoji);
+                              }
+                            : undefined
+                        }
                       >
                         <MessageBubble
                           message={msg}
@@ -1435,7 +1450,9 @@ export function MessageThread({
                           reply={reply}
                           reactions={msgReactions}
                           currentUserId={user?.id}
-                          onToggleReaction={handlePillToggle}
+                          onToggleReaction={
+                            reactionsAvailable ? handlePillToggle : undefined
+                          }
                         />
                       </MessageActions>
                     );

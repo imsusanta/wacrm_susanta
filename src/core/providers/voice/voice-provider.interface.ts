@@ -155,3 +155,82 @@ export interface VoiceProvider {
 
 /** Compatibility alias for non-voice code that referenced the old name. */
 export type VoicePlatformProvider = VoiceProvider;
+
+// ═════════════════════════════════════════════════════════════════════════
+// Modular Provider Abstractions (STT, TTS, Telephony)
+// ═════════════════════════════════════════════════════════════════════════
+
+export interface STTTranscriptionResult {
+  transcript: string;
+  languageCode?: string;
+  confidence?: number;
+  isFinal?: boolean;
+  requestId?: string;
+}
+
+export interface STTOptions {
+  languageCode?: string;
+  model?: string;
+  mimeType?: string;
+}
+
+export interface STTProvider {
+  readonly providerName: string;
+  transcribeAudio(
+    audioBuffer: Buffer,
+    options?: STTOptions
+  ): Promise<STTTranscriptionResult>;
+  validateConfiguration(): Promise<void>;
+}
+
+export interface VoiceOption {
+  id: string;
+  name: string;
+  languageCodes?: string[];
+  gender?: string;
+  provider?: string;
+}
+
+export interface TTSOptions {
+  voiceId?: string;
+  languageCode?: string;
+  model?: string;
+  pace?: number;
+  format?: 'wav' | 'mp3' | 'pcm';
+}
+
+export interface TTSSynthesizeResult {
+  audioBuffer: Buffer;
+  mimeType: string;
+  durationSeconds?: number;
+  requestId?: string;
+}
+
+export interface TTSProvider {
+  readonly providerName: string;
+  listVoices(): Promise<VoiceOption[]>;
+  synthesizeSpeech(
+    text: string,
+    options?: TTSOptions
+  ): Promise<TTSSynthesizeResult>;
+  validateConfiguration(): Promise<void>;
+}
+
+export interface TelephonyProvider {
+  readonly providerName: string;
+  initiateOutboundCall(
+    request: OutboundCallRequest
+  ): Promise<{ externalCallId: string }>;
+  getCallStatus(externalCallId: string): Promise<ProviderCall>;
+  transferCall?(externalCallId: string, targetNumber: string): Promise<void>;
+  terminateCall?(externalCallId: string): Promise<void>;
+  verifyWebhook(
+    rawBody: string,
+    headers: Headers
+  ): Promise<WebhookVerification>;
+  normalizeWebhook(
+    rawBody: string,
+    headers?: Headers
+  ): Promise<NormalizedVoiceWebhook>;
+}
+

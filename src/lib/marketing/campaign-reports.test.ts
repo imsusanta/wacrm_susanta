@@ -95,6 +95,9 @@ describe('aggregateBroadcasts', () => {
         read_count: 6,
         replied_count: 3,
         failed_count: 2,
+        clicks_count: 4,
+        conversions_count: 2,
+        attributed_revenue: 3500,
       }),
     ]);
 
@@ -105,20 +108,35 @@ describe('aggregateBroadcasts', () => {
     expect(summary.replies).toBe(7);
     expect(summary.failed).toBe(2);
     expect(summary.recipients).toBe(30);
+    expect(summary.clicks).toBe(4);
+    expect(summary.conversions).toBe(2);
+    expect(summary.attributedRevenue).toBe(3500);
 
     expect(summary.deliveryRate).toBe(rate(20, 28));
     expect(summary.readRate).toBe(rate(11, 28));
     expect(summary.replyRate).toBe(rate(7, 20)); // vs delivered
+    expect(summary.ctr).toBe(rate(4, 20)); // clicks vs delivered
+    expect(summary.conversionRate).toBe(rate(2, 20)); // conversions vs delivered
   });
 });
 
 describe('buildReportCsv', () => {
-  it('renders a header plus one row per broadcast', () => {
-    const csv = buildReportCsv([makeBroadcast()]);
+  it('renders a header plus one row per broadcast with CTR and revenue', () => {
+    const csv = buildReportCsv([
+      makeBroadcast({
+        clicks_count: 2,
+        conversions_count: 1,
+        attributed_revenue: 1500,
+      }),
+    ]);
     const lines = csv.split('\n');
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toContain('Campaign,Status,Sent');
+    expect(lines[0]).toContain(
+      'Campaign,Status,Sent,Delivered,Read,Read Rate %,Replies,Reply Rate %,Clicks,CTR %,Conversions,Revenue,Created'
+    );
     expect(lines[1]).toContain('"Campaign One","sent","10","8"');
+    expect(lines[1]).toContain('"2"'); // clicks
+    expect(lines[1]).toContain('"1500"'); // revenue
   });
 
   it('neutralizes CSV formula injection and escapes quotes', () => {

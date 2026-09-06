@@ -261,7 +261,8 @@ export async function lookupInternalIdByMetaId(
  */
 export async function flagBroadcastReplyIfAny(
   accountId: string,
-  contactId: string
+  contactId: string,
+  isButtonClicked = false
 ) {
   try {
     const { data: recs, error } = await getAdminClient()
@@ -276,9 +277,19 @@ export async function flagBroadcastReplyIfAny(
     if (error || !recs || recs.length === 0) return;
 
     const row = recs[0];
+    const updatePayload: Record<string, unknown> = {
+      status: 'replied',
+      replied_at: new Date().toISOString(),
+    };
+
+    if (isButtonClicked) {
+      updatePayload.button_clicked = true;
+      updatePayload.clicked_at = new Date().toISOString();
+    }
+
     const { error: updErr } = await getAdminClient()
       .from('broadcast_recipients')
-      .update({ status: 'replied', replied_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq('id', row.id);
 
     if (updErr) {

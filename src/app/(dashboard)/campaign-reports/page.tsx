@@ -7,10 +7,11 @@ import {
   BarChart3,
   Download,
   Megaphone,
-  MessageSquare,
-  Send,
   Eye,
   CheckCircle2,
+  MousePointerClick,
+  TrendingUp,
+  IndianRupee,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -231,8 +232,8 @@ export default function CampaignReportsPage() {
       {/* Loading skeletons */}
       {loading && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            {Array.from({ length: 5 }).map((_, i) => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-[72px] rounded-xl" />
             ))}
           </div>
@@ -265,16 +266,12 @@ export default function CampaignReportsPage() {
       {/* Report content */}
       {!loading && !error && summary && campaigns.length > 0 && (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <SummaryCard
               icon={Megaphone}
               label="Total Campaigns"
               value={summary.totalCampaigns.toLocaleString()}
-            />
-            <SummaryCard
-              icon={Send}
-              label="Messages Sent"
-              value={summary.sent.toLocaleString()}
+              sub={`${summary.sent.toLocaleString()} sent`}
             />
             <SummaryCard
               icon={CheckCircle2}
@@ -284,15 +281,27 @@ export default function CampaignReportsPage() {
             />
             <SummaryCard
               icon={Eye}
-              label="Read"
-              value={summary.read.toLocaleString()}
-              sub={`${rate(summary.read, summary.sent)}% read`}
+              label="Read Rate"
+              value={`${summary.readRate}%`}
+              sub={`${summary.read.toLocaleString()} read`}
             />
             <SummaryCard
-              icon={MessageSquare}
-              label="Replies"
-              value={summary.replies.toLocaleString()}
-              sub={`${summary.replyRate}% reply rate`}
+              icon={MousePointerClick}
+              label="CTA Clicks (CTR)"
+              value={summary.clicks.toLocaleString()}
+              sub={`${summary.ctr}% CTR`}
+            />
+            <SummaryCard
+              icon={TrendingUp}
+              label="Conversions"
+              value={summary.conversions.toLocaleString()}
+              sub={`${summary.conversionRate}% rate`}
+            />
+            <SummaryCard
+              icon={IndianRupee}
+              label="Revenue"
+              value={`₹${summary.attributedRevenue.toLocaleString()}`}
+              sub="Attributed"
             />
           </div>
 
@@ -308,11 +317,11 @@ export default function CampaignReportsPage() {
                     <TableHead>Campaign</TableHead>
                     <TableHead className="text-right">Sent</TableHead>
                     <TableHead className="text-right">Delivered</TableHead>
-                    <TableHead className="text-right">Read</TableHead>
-                    <TableHead className="text-right">Replies</TableHead>
-                    <TableHead className="text-right">Failed</TableHead>
-                    <TableHead className="text-right">Delivery Rate</TableHead>
-                    <TableHead className="text-right">Reply Rate</TableHead>
+                    <TableHead className="text-right">Read (%)</TableHead>
+                    <TableHead className="text-right">Replies (%)</TableHead>
+                    <TableHead className="text-right">Clicks (CTR)</TableHead>
+                    <TableHead className="text-right">Conversions</TableHead>
+                    <TableHead className="text-right">Revenue</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -341,18 +350,30 @@ export default function CampaignReportsPage() {
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {(c.read_count ?? 0).toLocaleString()}
+                          <span className="text-muted-foreground ml-1 text-[11px]">
+                            ({rate(c.read_count ?? 0, c.sent_count ?? 0)}%)
+                          </span>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {(c.replied_count ?? 0).toLocaleString()}
+                          <span className="text-muted-foreground ml-1 text-[11px]">
+                            (
+                            {rate(c.replied_count ?? 0, c.delivered_count ?? 0)}
+                            %)
+                          </span>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {(c.failed_count ?? 0).toLocaleString()}
+                          {(c.clicks_count ?? 0).toLocaleString()}
+                          <span className="text-muted-foreground ml-1 text-[11px]">
+                            ({rate(c.clicks_count ?? 0, c.delivered_count ?? 0)}
+                            %)
+                          </span>
                         </TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">
-                          {rate(c.delivered_count ?? 0, c.sent_count ?? 0)}%
+                        <TableCell className="text-right font-medium text-emerald-400 tabular-nums">
+                          {(c.conversions_count ?? 0).toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">
-                          {rate(c.replied_count ?? 0, c.delivered_count ?? 0)}%
+                        <TableCell className="text-right font-semibold text-emerald-400 tabular-nums">
+                          ₹{Number(c.attributed_revenue ?? 0).toLocaleString()}
                         </TableCell>
                       </TableRow>
                     );
@@ -382,15 +403,26 @@ export default function CampaignReportsPage() {
                         {status.label}
                       </span>
                     </div>
-                    <div className="text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                      <span>Sent: {c.sent_count ?? 0}</span>
-                      <span>Delivered: {c.delivered_count ?? 0}</span>
-                      <span>Read: {c.read_count ?? 0}</span>
-                      <span>Replies: {c.replied_count ?? 0}</span>
-                      <span>Failed: {c.failed_count ?? 0}</span>
+                    <div className="text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                      <span>Sent: {(c.sent_count ?? 0).toLocaleString()}</span>
                       <span>
-                        Delivery:{' '}
-                        {rate(c.delivered_count ?? 0, c.sent_count ?? 0)}%
+                        Delivered: {(c.delivered_count ?? 0).toLocaleString()}
+                      </span>
+                      <span>
+                        Read: {(c.read_count ?? 0).toLocaleString()} (
+                        {rate(c.read_count ?? 0, c.sent_count ?? 0)}%)
+                      </span>
+                      <span>
+                        Clicks: {(c.clicks_count ?? 0).toLocaleString()} (
+                        {rate(c.clicks_count ?? 0, c.delivered_count ?? 0)}%)
+                      </span>
+                      <span className="font-medium text-emerald-400">
+                        Conversions:{' '}
+                        {(c.conversions_count ?? 0).toLocaleString()}
+                      </span>
+                      <span className="font-semibold text-emerald-400">
+                        Revenue: ₹
+                        {Number(c.attributed_revenue ?? 0).toLocaleString()}
                       </span>
                     </div>
                   </CardContent>

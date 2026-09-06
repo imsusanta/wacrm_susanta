@@ -5,6 +5,7 @@ import {
   Megaphone,
   MessageCircle,
   MessageSquare,
+  PhoneCall,
   Settings,
   ShieldCheck,
   Users,
@@ -101,6 +102,18 @@ export const NAVIGATION_REGISTRY: SidebarNavItem<React.ElementType>[] = [
         activeHrefs: ['/chatbot', '/faq-bot'],
       },
       { id: 'automation-rules', label: 'Automations', href: '/automations' },
+    ],
+  },
+  {
+    id: 'calling',
+    label: 'Calling',
+    icon: PhoneCall,
+    children: [
+      { id: 'calling-overview', label: 'Overview', href: '/calling' },
+      { id: 'calling-agents', label: 'Calling Agents', href: '/calling/agents' },
+      { id: 'calling-calls', label: 'Calls', href: '/calling/calls' },
+      { id: 'calling-phone-numbers', label: 'Phone Numbers', href: '/calling/phone-numbers' },
+      { id: 'calling-settings', label: 'Settings', href: '/calling/settings' },
     ],
   },
   {

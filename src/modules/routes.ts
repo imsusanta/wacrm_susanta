@@ -21,6 +21,7 @@ const SHARED_WORKSPACE_ROUTES = [
   '/invoices',
   '/automations',
   '/integrations',
+  '/calling',
   '/help',
   '/analytics',
 ] as const;
