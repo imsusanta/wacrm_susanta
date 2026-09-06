@@ -11,10 +11,14 @@ export interface ResolveConfigOptions {
 
 export interface DecryptedVoiceCredentials {
   apiKey: string;
-  webhookSecret: string;
+  webhookSecret?: string;
   agentId?: string;
   phoneNumberId?: string;
   keyVersion?: string;
+  orgId?: string;
+  workspaceId?: string;
+  connectionId?: string;
+  phoneNumber?: string;
 }
 
 /**
@@ -153,5 +157,9 @@ export async function resolveTenantVoiceConfig(
       provider === 'sarvam'
         ? process.env.SARVAM_BASE_URL
         : process.env.ELEVENLABS_BASE_URL,
+    orgId: credentials.orgId,
+    workspaceId: credentials.workspaceId,
+    connectionId: credentials.connectionId,
+    phoneNumber: credentials.phoneNumber || integration.phoneNumberMasked,
   };
 }

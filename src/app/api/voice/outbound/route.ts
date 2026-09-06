@@ -135,26 +135,25 @@ export async function POST(request: Request) {
     try {
       tenantConfig = await resolveTenantVoiceConfig(
         ctx.accountId,
-        'elevenlabs',
+        providerName as 'elevenlabs' | 'sarvam' | 'xai',
         { allowBootstrap: true }
       );
     } catch {
-      if (providerName === 'elevenlabs') {
-        return NextResponse.json(
-          {
-            error: 'ELEVENLABS_NOT_CONFIGURED',
-            message:
-              'ElevenLabs Voice is not configured. Add your ElevenLabs API Key, Webhook Secret, and Agent ID in Calling → Settings to enable outbound calls via ElevenLabs.',
-          },
-          { status: 422 }
-        );
-      }
-      // For non-elevenlabs providers, tenantConfig remains undefined — that's OK
-      tenantConfig = null;
+      const msg =
+        providerName === 'sarvam'
+          ? 'Sarvam Voice is not configured. Add your Sarvam Voice Agents credentials in Calling → Settings to enable outbound calls.'
+          : 'ElevenLabs Voice is not configured. Add your ElevenLabs API Key, Webhook Secret, and Agent ID in Calling → Settings to enable outbound calls via ElevenLabs.';
+      return NextResponse.json(
+        {
+          error: `${providerName.toUpperCase()}_NOT_CONFIGURED`,
+          message: msg,
+        },
+        { status: 422 }
+      );
     }
     const integration = await voiceRepository.findIntegration(
       ctx.accountId,
-      'elevenlabs'
+      providerName
     );
 
     // If a custom calling_agent was selected, check if it has elevenlabs_agent_id
@@ -166,7 +165,7 @@ export async function POST(request: Request) {
         .eq('id', agentId)
         .eq('account_id', ctx.accountId)
         .maybeSingle();
-      if (callingAgent?.elevenlabs_agent_id) {
+      if (callingAgent?.elevenlabs_agent_id && providerName === 'elevenlabs') {
         remoteAgentId = callingAgent.elevenlabs_agent_id;
       }
     }
@@ -343,7 +342,7 @@ export async function POST(request: Request) {
 
       if (error instanceof VoiceProviderError) {
         return NextResponse.json(
-          { error: error.code },
+          { error: error.code, message: error.message },
           { status: error.status }
         );
       }

@@ -53,6 +53,10 @@ export interface VoiceProviderConfig {
   phoneNumberId?: string;
   webhookSecret?: string;
   baseUrl?: string;
+  orgId?: string;
+  workspaceId?: string;
+  connectionId?: string;
+  phoneNumber?: string;
 }
 
 export interface ProviderHealth {
