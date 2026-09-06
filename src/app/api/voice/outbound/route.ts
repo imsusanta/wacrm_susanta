@@ -1,6 +1,6 @@
-import crypto from 'node:crypto';
+import crypto, { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireRole } from '@/lib/auth/account';
 import { contactsRepository } from '@/lib/db/repositories';
 import { voiceRepository } from '@/lib/db/repositories';
 import { getVoiceProvider } from '@/core/providers/voice/provider-factory';
@@ -191,7 +191,10 @@ export async function POST(request: Request) {
     );
 
     if (existingCommand) {
-      if (existingCommand.commandFingerprint !== fingerprint) {
+      const storedFp =
+        (existingCommand.params_json as Record<string, unknown>)?.fingerprint ||
+        existingCommand.commandFingerprint;
+      if (storedFp && storedFp !== fingerprint) {
         return NextResponse.json(
           {
             error: 'VOICE_PROVIDER_REQUEST_FAILED',
@@ -241,7 +244,10 @@ export async function POST(request: Request) {
           idempotencyKey
         );
         if (raceCommand) {
-          if (raceCommand.commandFingerprint !== fingerprint) {
+          const raceFp =
+            (raceCommand.params_json as Record<string, unknown>)?.fingerprint ||
+            raceCommand.commandFingerprint;
+          if (raceFp && raceFp !== fingerprint) {
             return NextResponse.json(
               {
                 error: 'VOICE_PROVIDER_REQUEST_FAILED',
@@ -269,12 +275,14 @@ export async function POST(request: Request) {
       throw err;
     }
 
-    // 2. Persist ONE QUEUED call document
+    const commandRefId = String(command.id || command.$id || randomUUID());
+
+    // 2. Persist ONE call document
     const callDoc = await voiceRepository.createCall(ctx.accountId, {
       provider: providerName,
       direction: 'outbound',
-      status: 'queued',
-      externalCallId: `pending_${command.$id}`,
+      status: 'initiated',
+      externalCallId: `pending_${commandRefId}`,
       fromMasked:
         integration?.phoneNumberMasked || tenantConfig?.phoneNumberId || '***',
       toMasked: targetPhone.slice(-4).padStart(targetPhone.length, '*'),
@@ -287,11 +295,13 @@ export async function POST(request: Request) {
       agentId: remoteAgentId,
     });
 
-    // 3. Transition call document status to INITIATING
+    const callDocId = String(callDoc.id || callDoc.$id);
+
+    // 3. Transition call document status to INITIATED
     await voiceRepository.updateCallStatus(
       ctx.accountId,
-      callDoc.$id,
-      'initiating'
+      callDocId,
+      'initiated'
     );
 
     // 4. Contact telephony provider using tenant provider instance
@@ -321,7 +331,7 @@ export async function POST(request: Request) {
 
       await voiceRepository.updateCallStatus(
         ctx.accountId,
-        callDoc.$id,
+        callDocId,
         'failed',
         {
           failureCode:
@@ -332,7 +342,7 @@ export async function POST(request: Request) {
         }
       );
 
-      await voiceRepository.updateCommand(command.$id as string, {
+      await voiceRepository.updateCommand(commandRefId, {
         status: 'failed',
         lastErrorSanitized:
           error instanceof VoiceProviderError
@@ -348,24 +358,27 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json(
-        { error: 'VOICE_PROVIDER_REQUEST_FAILED' },
+        {
+          error: 'VOICE_PROVIDER_REQUEST_FAILED',
+          message: errorMessage,
+        },
         { status: 502 }
       );
     }
 
-    // 5. Update that SAME Appwrite call document with externalCallId!
+    // 5. Update call document with externalCallId
     try {
       const updatedCall = await voiceRepository.updateCallStatus(
         ctx.accountId,
-        callDoc.$id,
-        'initiating',
+        callDocId,
+        'ringing',
         {
           externalCallId: outboundResult.externalCallId,
           updatedAt: new Date().toISOString(),
         }
       );
 
-      await voiceRepository.updateCommand(command.$id as string, {
+      await voiceRepository.updateCommand(commandRefId, {
         status: 'succeeded',
         externalCallId: outboundResult.externalCallId,
         resultReference: outboundResult.externalCallId,
@@ -395,16 +408,26 @@ export async function POST(request: Request) {
         /* best effort reconciliation persistence */
       }
 
-      // Return sanitized failure—NOT fake success or partialSuccess!
       return NextResponse.json(
         {
           error: 'VOICE_PROVIDER_PERSISTENCE_FAILED',
-          message: 'Failed to record provider response; reconciliation queued',
+          message: 'Call placed but local record update failed; reconciliation queued',
         },
         { status: 500 }
       );
     }
   } catch (error) {
-    return toErrorResponse(error);
+    console.error('[POST /api/voice/outbound] Uncaught error:', error);
+    if (error instanceof VoiceProviderError) {
+      return NextResponse.json(
+        { error: error.code, message: error.message },
+        { status: error.status }
+      );
+    }
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json(
+      { error: 'INTERNAL_SERVER_ERROR', message },
+      { status: 500 }
+    );
   }
 }

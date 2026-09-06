@@ -386,6 +386,10 @@ export const voiceRepository = {
       .eq('account_id', accountId)
       .eq('external_call_id', externalCallId)
       .maybeSingle();
+    const sanitizedStatus =
+      data.status === 'queued' || data.status === 'initiating'
+        ? 'initiated'
+        : (data.status as string) || 'initiated';
     const payload = {
       account_id: accountId,
       external_call_id: externalCallId,
@@ -395,6 +399,7 @@ export const voiceRepository = {
           v,
         ])
       ),
+      status: sanitizedStatus,
       updated_at: new Date().toISOString(),
     };
     if (existing) {
@@ -437,14 +442,25 @@ export const voiceRepository = {
     status: string,
     extra?: Record<string, unknown>
   ) {
-    const existing = await getTenantRow('calls', accountId, callId);
-    if (!existing)
-      throw new Error('Tenant isolation violation: accountId mismatch');
+    const sanitizedStatus =
+      status === 'queued' || status === 'initiating' ? 'initiated' : status;
+    const sanitizedExtra: Record<string, unknown> = {};
+    if (extra) {
+      for (const [k, v] of Object.entries(extra)) {
+        if (k === 'externalCallId') sanitizedExtra.external_call_id = v;
+        else if (k === 'failureMessageSanitized' || k === 'failureCode')
+          sanitizedExtra.failure_reason = v;
+        else {
+          const snakeKey = k.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+          sanitizedExtra[snakeKey] = v;
+        }
+      }
+    }
     const { data, error } = await db()
       .from('calls')
       .update({
-        status,
-        ...(extra || {}),
+        status: sanitizedStatus,
+        ...sanitizedExtra,
         updated_at: new Date().toISOString(),
       })
       .eq('id', callId)
@@ -452,7 +468,7 @@ export const voiceRepository = {
       .select('*')
       .maybeSingle();
     if (error) throw error;
-    return asDoc((data || existing) as Record<string, unknown>);
+    return asDoc(data as Record<string, unknown>);
   },
   async createCommand(data: Record<string, unknown>) {
     const { data: row, error } = await db()
@@ -462,7 +478,9 @@ export const voiceRepository = {
         call_id: data.callId || data.call_id,
         command_type: data.commandType || data.command_type,
         status: data.status || 'pending',
-        params_json: data.paramsJson || data.params_json,
+        params_json: data.paramsJson || data.params_json || {
+          fingerprint: data.commandFingerprint || data.command_fingerprint,
+        },
         idempotency_key: data.idempotencyKey || data.idempotency_key,
       })
       .select('*')
@@ -471,12 +489,15 @@ export const voiceRepository = {
     return asDoc(row as Record<string, unknown>);
   },
   async updateCommand(commandId: string, data: Record<string, unknown>) {
+    const payload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (data.status) payload.status = data.status;
+    if (data.callId || data.call_id) payload.call_id = data.callId || data.call_id;
+    if (data.paramsJson || data.params_json) payload.params_json = data.paramsJson || data.params_json;
     const { data: row, error } = await db()
       .from('voice_commands')
-      .update({
-        ...data,
-        updated_at: new Date().toISOString(),
-      })
+      .update(payload)
       .eq('id', commandId)
       .select('*')
       .maybeSingle();
