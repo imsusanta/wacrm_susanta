@@ -1,0 +1,112 @@
+name: Architecture validation diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: architecture-diagnostics-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    name: Collect architecture diagnostics
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'fix/saas-hardening-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      AUTH_PROVIDER: supabase
+      DATABASE_PROVIDER: supabase
+      MIGRATION_MODE: cutover
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-test-supabase-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-test-supabase-service-role-key
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      META_APP_SECRET: ci-dummy-meta-secret
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Test diagnostic reporting
+        run: node --test scripts/tests/ci-architecture-diagnostics.test.mjs
+      - name: Run independent validation stages
+        run: node scripts/ci-architecture-diagnostics.mjs "$RUNNER_TEMP/helpa-diagnostics"
+      - name: Preserve bounded diagnostic report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: architecture-diagnostics
+          path: ${{ runner.temp }}/helpa-diagnostics/
+          if-no-files-found: error
+          retention-days: 7
+
+  report:
+    name: Publish architecture diagnostics
+    needs: [collect]
+    if: >-
+      always() && !cancelled() &&
+      (needs.collect.result == 'success' || needs.collect.result == 'failure') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      # This job never checks out or executes pull-request code with write access.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: architecture-diagnostics
+          path: diagnostics
+      - name: Update diagnostic comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const marker = '<!-- helpa-architecture-diagnostics -->';
+            const body = fs.readFileSync('diagnostics/report.md', 'utf8');
+            if (!body.startsWith(marker) || body.length > 60000) {
+              throw new Error('Invalid or oversized diagnostic report');
+            }
+            const issue_number = context.payload.pull_request.number;
+            const current = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: issue_number,
+            });
+            if (current.data.head.sha !== context.payload.pull_request.head.sha) {
+              core.info('Skipping stale diagnostics for an older commit');
+              return;
+            }
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number,
+              per_page: 100,
+            });
+            const previous = comments.find((comment) =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.startsWith(marker)
+            );
+            if (previous) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: previous.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number,
+                body,
+              });
+            }

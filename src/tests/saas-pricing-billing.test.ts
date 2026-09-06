@@ -1,11 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { DEFAULT_PLANS, getPlanBySlug } from '@/core/billing/plans';
-import {
-  checkFeatureAccess,
-  checkPlanLimits,
-  incrementUsage,
-} from '@/lib/saas/subscription';
-import { RevenueAnalytics } from '@/core/billing/types';
+import { checkPlanLimits, incrementUsage } from '@/lib/saas/subscription';
+import type { RevenueAnalytics } from '@/core/billing/types';
 
 describe('Helpa SaaS Pricing Plans & Billing Architecture', () => {
   describe('1. Official Helpa SaaS Plan Catalog', () => {
@@ -39,43 +35,36 @@ describe('Helpa SaaS Pricing Plans & Billing Architecture', () => {
 
     it('should calculate initial payment as setup fee + first month', async () => {
       const growth = await getPlanBySlug('growth');
-      const initialPayment = growth.setupFee + growth.monthlyPrice;
-      expect(initialPayment).toBe(11999 + 4999); // 16,998
-
-      const recurringMonthly = growth.monthlyPrice;
-      expect(recurringMonthly).toBe(4999);
+      expect(growth.setupFee + growth.monthlyPrice).toBe(16998);
+      expect(growth.monthlyPrice).toBe(4999);
     });
   });
 
   describe('2. Centralized Feature Entitlements & Access Control', () => {
-    it('should grant features included in plan and reject features missing from plan', async () => {
-      const starterAccess = await checkFeatureAccess(
-        'test-account-starter',
-        'core.inbox'
-      );
-      expect(starterAccess.allowed).toBe(true);
-
-      const proAccess = await checkFeatureAccess(
-        'test-account-pro',
-        'core.custom_models'
-      );
-      expect(proAccess.allowed).toBe(true);
+    it('uses the official plan catalog instead of account-name inference', () => {
+      const starter = DEFAULT_PLANS.find((plan) => plan.slug === 'starter')!;
+      const pro = DEFAULT_PLANS.find((plan) => plan.slug === 'pro')!;
+      expect(starter.features).toContain('core.inbox');
+      expect(starter.features).not.toContain('core.custom_models');
+      expect(pro.features).toContain('core.custom_models');
     });
   });
 
   describe('3. Usage Limits & Consumption Enforcements', () => {
-    it('should allow usage within limit and flag limits reached', async () => {
-      const limitCheck = await checkPlanLimits('test-account-1', 'max_users');
-      expect(limitCheck).toHaveProperty('allowed');
-      expect(limitCheck).toHaveProperty('currentUsage');
-      expect(limitCheck).toHaveProperty('limit');
-      expect(limitCheck).toHaveProperty('percentageUsed');
+    it('returns a fail-closed limit result when no subscription is persisted', async () => {
+      const result = await checkPlanLimits('test-account-1', 'max_users');
+      expect(result.allowed).toBe(false);
+      expect(result.limit).toBe(0);
+      expect(result.reason).toContain('Unable to verify');
     });
 
-    it('should safely increment usage tracking metrics', async () => {
+    it('rejects invalid usage increments before database access', async () => {
+      await expect(incrementUsage('', 'ai_requests', 1)).rejects.toThrow(
+        'accountId is required'
+      );
       await expect(
-        incrementUsage('test-account-1', 'ai_requests', 1)
-      ).resolves.not.toThrow();
+        incrementUsage('test-account-1', 'ai_requests', 0)
+      ).rejects.toThrow('Usage quantity is invalid');
     });
   });
 
@@ -100,7 +89,7 @@ describe('Helpa SaaS Pricing Plans & Billing Architecture', () => {
         analytics.setupFeeRevenue + analytics.recurringRevenue
       );
       expect(analytics.revenueByPlan.growth).toBe(11999 + 4999);
-      expect(analytics.revenueByPlan.pro).toBe(19999 + 7999 - 15000); // 12998
+      expect(analytics.revenueByPlan.pro).toBe(12998);
     });
   });
 });

@@ -1,155 +1,122 @@
 import { NextResponse } from 'next/server';
 import { checkSuperAdmin } from '@/lib/auth/admin';
 import { getAdminClient as getSupabaseAdminClient } from '@/lib/supabase/server';
+import { findPlanBySlug, resolvePlanRowId } from '@/core/billing/plans';
+
+function assertResult(
+  error: { message?: string } | null | undefined,
+  operation: string
+): void {
+  if (error) throw new Error(`${operation}: ${error.message || 'database error'}`);
+}
 
 export async function GET() {
   try {
-    const isSuper = await checkSuperAdmin();
-    if (!isSuper) {
+    if (!(await checkSuperAdmin())) {
       return NextResponse.json(
         { error: 'Forbidden: Super Admin access required' },
         { status: 403 }
       );
     }
 
-    const supabase = getSupabaseAdminClient();
+    const database = getSupabaseAdminClient();
+    const [accountsResult, profilesResult, subscriptionsResult, contactsResult] =
+      await Promise.all([
+        database
+          .from('accounts')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        database.from('profiles').select('*'),
+        database.from('subscriptions').select('*, plan:plans(id, name)'),
+        database.from('contacts').select('id, account_id'),
+      ]);
 
-    // 1. Fetch Accounts
-    const { data: accountsData } = await supabase
-      .from('accounts')
-      .select('*')
-      .order('created_at', { ascending: false });
+    assertResult(accountsResult.error, 'Failed to load accounts');
+    assertResult(profilesResult.error, 'Failed to load profiles');
+    assertResult(subscriptionsResult.error, 'Failed to load subscriptions');
+    assertResult(contactsResult.error, 'Failed to load contacts');
 
-    // 2. Fetch Profiles
-    const { data: profilesData } = await supabase.from('profiles').select('*');
+    const profiles = profilesResult.data || [];
+    const subscriptions = subscriptionsResult.data || [];
+    const contacts = contactsResult.data || [];
 
-    // 3. Fetch Subscriptions
-    const { data: subsData } = await supabase.from('subscriptions').select('*');
-
-    // 4. Fetch Contacts
-    const { data: contactsData } = await supabase
-      .from('contacts')
-      .select('id, account_id');
-
-    const accounts = accountsData || [];
-    const profiles = profilesData || [];
-    const subs = subsData || [];
-    const contacts = contactsData || [];
-
-    const profilesByAccount: Record<string, typeof profiles> = {};
-    profiles.forEach((p) => {
-      const accId = String(p.account_id || 'default_account');
-      if (!profilesByAccount[accId]) {
-        profilesByAccount[accId] = [];
-      }
-      profilesByAccount[accId].push(p);
-    });
-
-    const contactsCountByAccount: Record<string, number> = {};
-    contacts.forEach((c) => {
-      const accId = String(c.account_id || 'default_account');
-      contactsCountByAccount[accId] = (contactsCountByAccount[accId] || 0) + 1;
-    });
-
-    const subByAccount: Record<string, Record<string, unknown>> = {};
-    subs.forEach((s) => {
-      const accId = String(s.account_id || 'default_account');
-      subByAccount[accId] = s;
-    });
-
-    // Ensure all account_ids from profiles exist in accounts array
-    const accountMap = new Map<string, Record<string, unknown>>();
-    accounts.forEach((acc) => {
-      const id = String(acc.id);
-      accountMap.set(id, acc);
-    });
-
-    // Synthesize missing accounts from profiles
-    Object.keys(profilesByAccount).forEach((accId) => {
-      if (!accountMap.has(accId)) {
-        accountMap.set(accId, {
-          id: accId,
-          name:
-            accId === 'default_account'
-              ? 'Helpa Health Clinic'
-              : 'Clinic Account',
-          created_at: new Date().toISOString(),
-        });
-      }
-    });
-
-    // If still empty, add default account for primary clinic
-    if (accountMap.size === 0) {
-      accountMap.set('default_account', {
-        id: 'default_account',
-        name: 'Helpa Health Clinic',
-        created_at: new Date().toISOString(),
-      });
-    }
-
-    const tenantList = Array.from(accountMap.values()).map((acc) => {
-      const accId = String(acc.id || 'default_account');
-      const accProfiles = profilesByAccount[accId] || profiles;
-      const ownerProfile =
-        accProfiles.find((p) => p.user_id === acc.owner_user_id) ||
-        accProfiles.find(
-          (p) => p.account_role === 'owner' || p.role === 'owner'
+    const tenants = (accountsResult.data || []).map((account) => {
+      const accountId = String(account.id);
+      const accountProfiles = profiles.filter(
+        (profile) => String(profile.account_id || '') === accountId
+      );
+      const owner =
+        accountProfiles.find(
+          (profile) =>
+            String(profile.user_id || profile.id || '') ===
+            String(account.owner_user_id || '')
         ) ||
-        accProfiles[0] ||
+        accountProfiles.find((profile) =>
+          ['owner', 'admin'].includes(
+            String(profile.account_role || profile.role || '').toLowerCase()
+          )
+        ) ||
         null;
-      const subInfo = subByAccount[accId] || null;
+      const subscription =
+        subscriptions.find(
+          (item) => String(item.account_id || '') === accountId
+        ) || null;
+      const relation = Array.isArray(subscription?.plan)
+        ? subscription.plan[0]
+        : subscription?.plan;
+      const plan =
+        relation && typeof relation === 'object'
+          ? (relation as Record<string, unknown>)
+          : null;
 
       return {
-        id: accId,
-        name: String(acc.name || 'Helpa Health Clinic'),
-        created_at: String(acc.created_at || new Date().toISOString()),
-        owner: ownerProfile
+        id: accountId,
+        name: String(account.name || accountId),
+        created_at: account.created_at || null,
+        owner: owner
           ? {
-              full_name:
-                (ownerProfile.full_name as string) ||
-                (ownerProfile.name as string) ||
-                'Account Owner',
-              email: (ownerProfile.email as string) || '',
+              full_name: String(owner.full_name || owner.name || ''),
+              email: String(owner.email || ''),
             }
           : null,
-        membersCount: accProfiles.length || 1,
-        contactsCount: contactsCountByAccount[accId] || 0,
-        subscription: subInfo
+        membersCount: accountProfiles.length,
+        contactsCount: contacts.filter(
+          (contact) => String(contact.account_id || '') === accountId
+        ).length,
+        subscription: subscription
           ? {
-              status: (subInfo.status as string) || 'active',
-              end_date: (subInfo.end_date as string) || null,
-              plan: {
-                id: 'plan_growth',
-                name: 'Growth Plan',
-              },
+              status: String(subscription.status || 'incomplete'),
+              end_date: subscription.end_date || null,
+              plan: plan
+                ? {
+                    id: String(plan.id || subscription.plan_id || ''),
+                    name: String(plan.name || 'unassigned'),
+                  }
+                : subscription.plan_id
+                  ? {
+                      id: String(subscription.plan_id),
+                      name: 'unassigned',
+                    }
+                  : null,
             }
-          : {
-              status: 'active',
-              end_date: null,
-              plan: {
-                id: 'plan_growth',
-                name: 'Growth Plan',
-              },
-            },
-        usage: {
-          aiRequests: 0,
-          whatsappMessages: 0,
-        },
+          : null,
+        usage: null,
       };
     });
 
-    return NextResponse.json(tenantList);
-  } catch (err: unknown) {
-    console.error('[GET /api/admin/tenants] error:', err);
-    const msg = err instanceof Error ? err.message : 'Internal Server Error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json(tenants);
+  } catch {
+    console.error('[GET /api/admin/tenants] Database query failed');
+    return NextResponse.json(
+      { error: 'Tenant data is temporarily unavailable' },
+      { status: 503 }
+    );
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const isSuper = await checkSuperAdmin();
-    if (!isSuper) {
+    if (!(await checkSuperAdmin())) {
       return NextResponse.json(
         { error: 'Forbidden: Super Admin access required' },
         { status: 403 }
@@ -159,51 +126,110 @@ export async function PATCH(request: Request) {
     const body = (await request.json().catch(() => null)) as {
       tenantId?: string;
       planId?: string;
-      status?: 'trial' | 'active' | 'expired' | 'cancelled';
+      status?: string;
       endDate?: string;
     } | null;
+    const tenantId = body?.tenantId?.trim();
+    if (!tenantId) {
+      return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
+    }
 
-    const tenantId = body?.tenantId || 'default_account';
-    const supabase = getSupabaseAdminClient();
+    const status = body?.status?.trim().toLowerCase();
+    const allowedStatuses = new Set([
+      'trial',
+      'active',
+      'cancelled',
+      'expired',
+    ]);
+    if (status && !allowedStatuses.has(status)) {
+      return NextResponse.json(
+        { error: 'Invalid subscription status' },
+        { status: 400 }
+      );
+    }
 
-    // Update or create subscription record
-    const { data: existing } = await supabase
+    const endDate = body?.endDate?.trim();
+    if (endDate && Number.isNaN(new Date(endDate).getTime())) {
+      return NextResponse.json({ error: 'Invalid endDate' }, { status: 400 });
+    }
+
+    const plan = body?.planId ? await findPlanBySlug(body.planId) : null;
+    if (body?.planId && (!plan || !plan.isActive)) {
+      return NextResponse.json(
+        { error: 'Unknown or inactive plan' },
+        { status: 400 }
+      );
+    }
+    const planRowId = plan ? await resolvePlanRowId(plan) : null;
+    if (plan && !planRowId) {
+      return NextResponse.json(
+        { error: 'Plan catalog is not provisioned' },
+        { status: 409 }
+      );
+    }
+
+    const database = getSupabaseAdminClient();
+    const { data: account, error: accountError } = await database
+      .from('accounts')
+      .select('id')
+      .eq('id', tenantId)
+      .maybeSingle();
+    assertResult(accountError, 'Failed to verify tenant');
+    if (!account) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+    }
+
+    const { data: existing, error: lookupError } = await database
       .from('subscriptions')
       .select('id')
       .eq('account_id', tenantId)
-      .limit(1)
       .maybeSingle();
+    assertResult(lookupError, 'Failed to load subscription');
 
-    const endDate =
-      body?.endDate || new Date(Date.now() + 30 * 86400 * 1000).toISOString();
+    const now = new Date().toISOString();
+    const changes: Record<string, unknown> = { updated_at: now };
+    if (status) changes.status = status;
+    if (endDate) changes.end_date = new Date(endDate).toISOString();
+    if (planRowId) changes.plan_id = planRowId;
 
-    if (existing) {
-      await supabase
-        .from('subscriptions')
-        .update({
-          status: body?.status || 'active',
-          end_date: endDate,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id);
-    } else {
-      await supabase.from('subscriptions').insert({
-        account_id: tenantId,
-        status: body?.status || 'active',
-        end_date: endDate,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
+    if (Object.keys(changes).length === 1) {
+      return NextResponse.json(
+        { error: 'No subscription changes were provided' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Tenant subscription updated successfully',
-    });
-  } catch (err) {
-    console.error('[PATCH /api/admin/tenants] error:', err);
+    if (existing) {
+      const { error } = await database
+        .from('subscriptions')
+        .update(changes)
+        .eq('id', existing.id)
+        .eq('account_id', tenantId);
+      assertResult(error, 'Failed to update subscription');
+    } else {
+      if (!planRowId || !status || !endDate) {
+        return NextResponse.json(
+          { error: 'A new subscription requires planId, status, and endDate' },
+          { status: 400 }
+        );
+      }
+      const { error } = await database.from('subscriptions').insert({
+        account_id: tenantId,
+        plan_id: planRowId,
+        status,
+        start_date: now,
+        end_date: new Date(endDate).toISOString(),
+        created_at: now,
+        updated_at: now,
+      });
+      assertResult(error, 'Failed to create subscription');
+    }
+
+    return NextResponse.json({ success: true });
+  } catch {
+    console.error('[PATCH /api/admin/tenants] Subscription update failed');
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to update tenant' },
+      { error: 'Failed to update tenant subscription' },
       { status: 500 }
     );
   }

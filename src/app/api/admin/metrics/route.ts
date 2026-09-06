@@ -2,10 +2,20 @@ import { NextResponse } from 'next/server';
 import { checkSuperAdmin } from '@/lib/auth/admin';
 import { getAdminClient } from '@/lib/db/server';
 
+function assertResult(
+  error: { message?: string } | null | undefined,
+  operation: string
+): void {
+  if (error) throw new Error(`${operation}: ${error.message || 'database error'}`);
+}
+
+function normalizeStatus(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
 export async function GET() {
   try {
-    const isSuper = await checkSuperAdmin();
-    if (!isSuper) {
+    if (!(await checkSuperAdmin())) {
       return NextResponse.json(
         { error: 'Forbidden: Super Admin access required' },
         { status: 403 }
@@ -13,122 +23,75 @@ export async function GET() {
     }
 
     const db = getAdminClient();
-    const currentMonth = new Date().toISOString().substring(0, 7) + '-01';
+    const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
+    const [accounts, contacts, profiles, subscriptions, usage] =
+      await Promise.all([
+        db.from('accounts').select('id', { count: 'exact', head: true }),
+        db.from('contacts').select('id', { count: 'exact', head: true }),
+        db.from('profiles').select('id', { count: 'exact', head: true }),
+        db.from('subscriptions').select('status, plan:plans(name)'),
+        db
+          .from('usage_tracking')
+          .select('ai_requests, whatsapp_messages')
+          .eq('month', currentMonth),
+      ]);
 
-    let totalAccounts = 0;
-    try {
-      const res = await db
-        .from('accounts')
-        .select('id', { count: 'exact', head: true });
-      totalAccounts = res.count ?? (res.data?.length || 0);
-    } catch (e) {
-      console.warn('[metrics] accounts fetch error:', e);
-    }
+    assertResult(accounts.error, 'Failed to count accounts');
+    assertResult(contacts.error, 'Failed to count contacts');
+    assertResult(profiles.error, 'Failed to count users');
+    assertResult(subscriptions.error, 'Failed to load subscriptions');
+    assertResult(usage.error, 'Failed to load monthly usage');
 
-    let totalContacts = 0;
-    try {
-      const res = await db
-        .from('contacts')
-        .select('id', { count: 'exact', head: true });
-      totalContacts = res.count ?? (res.data?.length || 0);
-    } catch (e) {
-      console.warn('[metrics] contacts fetch error:', e);
-    }
-
-    let totalUsers = 0;
-    try {
-      const res = await db
-        .from('profiles')
-        .select('id', { count: 'exact', head: true });
-      totalUsers = res.count ?? (res.data?.length || 0);
-    } catch (e) {
-      console.warn('[metrics] profiles fetch error:', e);
-    }
-
-    let subs: Array<Record<string, unknown>> = [];
-    try {
-      const res = await db
-        .from('subscriptions')
-        .select('status, plan:plans(name)');
-      subs = res.data || [];
-    } catch (e) {
-      console.warn('[metrics] subscriptions fetch error:', e);
-    }
-
-    let usageData: Array<{ ai_requests: number; whatsapp_messages: number }> =
-      [];
-    try {
-      const res = await db
-        .from('usage_tracking')
-        .select('ai_requests, whatsapp_messages')
-        .eq('month', currentMonth);
-      usageData = res.data || [];
-    } catch (e) {
-      console.warn('[metrics] usage_tracking fetch error:', e);
-    }
-
-    // Process subscriptions metrics
-    let activeSubs = 0;
-    let trialSubs = 0;
-    let expiredSubs = 0;
+    let active = 0;
+    let trial = 0;
+    let expired = 0;
     const planBreakdown: Record<string, number> = {};
 
-    subs.forEach((s: Record<string, unknown>) => {
-      if (s.status === 'active') activeSubs++;
-      else if (s.status === 'trial') trialSubs++;
-      else expiredSubs++;
+    for (const subscription of subscriptions.data || []) {
+      const status = normalizeStatus(subscription.status);
+      if (status === 'active') active++;
+      else if (['trial', 'trialing'].includes(status)) trial++;
+      else expired++;
 
-      const planObj = Array.isArray(s.plan) ? s.plan[0] : s.plan;
-      const planName = (planObj as Record<string, unknown>)?.name || 'Standard';
-      planBreakdown[String(planName)] =
-        (planBreakdown[String(planName)] || 0) + 1;
-    });
+      const relation = Array.isArray(subscription.plan)
+        ? subscription.plan[0]
+        : subscription.plan;
+      const planName = String(
+        (relation as Record<string, unknown> | null)?.name || 'unassigned'
+      );
+      planBreakdown[planName] = (planBreakdown[planName] || 0) + 1;
+    }
 
-    // Process usage metrics
-    let totalAiRequests = 0;
-    let totalWhatsappMessages = 0;
-    usageData.forEach(
-      (u: { ai_requests: number; whatsapp_messages: number }) => {
-        totalAiRequests += u.ai_requests || 0;
-        totalWhatsappMessages += u.whatsapp_messages || 0;
-      }
+    const usageTotals = (usage.data || []).reduce(
+      (totals, row) => ({
+        aiRequests: totals.aiRequests + Number(row.ai_requests || 0),
+        whatsappMessages:
+          totals.whatsappMessages + Number(row.whatsapp_messages || 0),
+      }),
+      { aiRequests: 0, whatsappMessages: 0 }
     );
 
     return NextResponse.json({
-      totalAccounts,
-      totalContacts,
-      totalUsers,
+      totalAccounts: accounts.count ?? accounts.data?.length ?? 0,
+      totalContacts: contacts.count ?? contacts.data?.length ?? 0,
+      totalUsers: profiles.count ?? profiles.data?.length ?? 0,
       subscriptions: {
-        active: activeSubs,
-        trial: trialSubs,
-        expired: expiredSubs,
-        total: subs.length,
+        active,
+        trial,
+        expired,
+        total: subscriptions.data?.length || 0,
         planBreakdown,
       },
-      usage: {
-        month: currentMonth,
-        aiRequests: totalAiRequests,
-        whatsappMessages: totalWhatsappMessages,
-      },
+      usage: { month: currentMonth, ...usageTotals },
     });
-  } catch (err: unknown) {
-    console.error('[GET /api/admin/metrics] error:', err);
-    return NextResponse.json({
-      totalAccounts: 1,
-      totalContacts: 0,
-      totalUsers: 1,
-      subscriptions: {
-        active: 1,
-        trial: 0,
-        expired: 0,
-        total: 1,
-        planBreakdown: { Standard: 1 },
-      },
-      usage: {
-        month: new Date().toISOString().substring(0, 7) + '-01',
-        aiRequests: 0,
-        whatsappMessages: 0,
-      },
-    });
+  } catch (error) {
+    console.error(
+      '[GET /api/admin/metrics] failed:',
+      error instanceof Error ? error.message : String(error)
+    );
+    return NextResponse.json(
+      { error: 'Platform metrics are temporarily unavailable' },
+      { status: 503 }
+    );
   }
 }

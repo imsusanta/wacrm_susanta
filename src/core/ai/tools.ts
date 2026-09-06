@@ -7,41 +7,15 @@
  */
 
 import { getAdminClient } from '@/lib/db/server';
-import type { AiToolDefinition, AiExecutionContext } from './types';
-import { registerTourPackageTools } from './tour-package-tools';
-import { resolveIndustryAlias } from '@/core/modules/terminology';
+import type { AiExecutionContext } from './types';
+import { getIndustryModulePort } from '@/core/modules/industry-port';
+import { AiToolRegistry } from './tool-registry';
 
-class AiToolRegistry {
-  private tools: Map<string, AiToolDefinition> = new Map();
-
-  public register(tool: AiToolDefinition): void {
-    this.tools.set(tool.name, tool);
-  }
-
-  public get(name: string): AiToolDefinition | undefined {
-    return this.tools.get(name);
-  }
-
-  public getAll(): AiToolDefinition[] {
-    return Array.from(this.tools.values());
-  }
-
-  public getToolsForIndustry(industry?: string): AiToolDefinition[] {
-    const all = this.getAll();
-    if (!industry) return all;
-    const canonicalTarget = resolveIndustryAlias(industry);
-    return all.filter(
-      (t) =>
-        !t.allowedIndustries ||
-        t.allowedIndustries.length === 0 ||
-        t.allowedIndustries.some(
-          (ind) => resolveIndustryAlias(ind) === canonicalTarget
-        )
-    );
-  }
-}
-
-export const aiToolRegistry = new AiToolRegistry();
+// Resolve the port lazily so registration/reset never leaves stale tools in
+// the platform registry. Tool authorization remains in the existing executor.
+export const aiToolRegistry = new AiToolRegistry(
+  () => getIndustryModulePort().getAiTools?.() ?? []
+);
 
 // ═════════════════════════════════════════════════════════════════════════
 // Core READ Tools
@@ -974,5 +948,3 @@ aiToolRegistry.register({
     };
   },
 });
-
-registerTourPackageTools(aiToolRegistry);

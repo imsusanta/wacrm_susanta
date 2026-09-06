@@ -1,0 +1,59 @@
+name: Tenant security regression
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - 'scripts/check-rls-invariants.mjs'
+      - 'scripts/test-tenant-security.sh'
+      - 'scripts/tests/**'
+      - 'scripts/security/**'
+      - '.github/workflows/tenant-security.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tenant-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-ci-test-only
+          POSTGRES_DB: helpa_security_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test the security validator itself
+        run: node --test scripts/tests/rls-invariants.test.mjs
+      - name: Test authenticated-runner safety guards (not live E2E)
+        run: node --test scripts/tests/authenticated-test-safety.test.mjs
+      - name: Check isolated full-history runner syntax
+        run: bash -n scripts/security/verify-complete-migrations.sh
+      - name: Check repository RLS invariants
+        run: node scripts/check-rls-invariants.mjs
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run real database permission and tenant regressions
+        env:
+          HELPA_SECURITY_TEST_DATABASE: '1'
+          PGHOST: 127.0.0.1
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: local-ci-test-only
+        run: bash scripts/test-tenant-security.sh

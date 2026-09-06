@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getExecutableIndustryModule,
   getIndustryModule,
+  isSelectableIndustry,
   resolveSystemPrompt,
   INDUSTRY_REGISTRY,
 } from './registry';
@@ -19,17 +21,16 @@ describe('INDUSTRY_REGISTRY', () => {
       'solo_teacher',
       'salon',
     ];
-
-    for (const modKey of expectedModules) {
-      const mod = INDUSTRY_REGISTRY[modKey];
-      expect(mod).toBeDefined();
-      expect(mod.id).toBe(modKey);
-      expect(mod.name).toBeTruthy();
-      expect(mod.sidebar.length).toBeGreaterThan(0);
-      expect(mod.dashboardMetrics.length).toBeGreaterThan(0);
-      expect(mod.systemPrompt).toBeTruthy();
-      expect(mod.kbTemplates.length).toBeGreaterThan(0);
-      expect(mod.campaignTemplates.length).toBeGreaterThan(0);
+    for (const key of expectedModules) {
+      const industryModule = INDUSTRY_REGISTRY[key];
+      expect(industryModule).toBeDefined();
+      expect(industryModule.id).toBe(key);
+      expect(industryModule.name).toBeTruthy();
+      expect(industryModule.sidebar.length).toBeGreaterThan(0);
+      expect(industryModule.dashboardMetrics.length).toBeGreaterThan(0);
+      expect(industryModule.systemPrompt).toBeTruthy();
+      expect(industryModule.kbTemplates.length).toBeGreaterThan(0);
+      expect(industryModule.campaignTemplates.length).toBeGreaterThan(0);
     }
   });
 
@@ -61,72 +62,51 @@ describe('INDUSTRY_REGISTRY', () => {
     }
   });
 
-  it('keeps sidebar labels aligned with terminology on shared routes', () => {
-    for (const industryModule of Object.values(INDUSTRY_REGISTRY)) {
-      const terms = industryModule.terminology!;
-      const labelsByRoute = new Map(
-        industryModule.sidebar.map((item) => [item.href, item.label])
-      );
-      if (labelsByRoute.has('/appointments')) {
-        expect(labelsByRoute.get('/appointments')).toBe(terms.meetings);
-      }
-      if (labelsByRoute.has('/contacts')) {
-        expect(labelsByRoute.get('/contacts')).toBe(terms.contacts);
-      }
-    }
-  });
-
-  it('marks health as ACTIVE and future modules as COMING_SOON', () => {
-    expect(getIndustryModule('health').status).toBe('ACTIVE');
-    expect(getIndustryModule('coaching').status).toBe('COMING_SOON');
-    expect(getIndustryModule('tutor').status).toBe('COMING_SOON');
-    expect(getIndustryModule('salon').status).toBe('COMING_SOON');
-    expect(getIndustryModule('real_estate').status).toBe('COMING_SOON');
-    expect(getIndustryModule('health').aiTools).toBeDefined();
+  it('marks only released modules as selectable and executable', () => {
+    expect(isSelectableIndustry('health')).toBe(true);
+    expect(isSelectableIndustry('general')).toBe(true);
+    expect(isSelectableIndustry('travel')).toBe(false);
+    expect(isSelectableIndustry('coaching')).toBe(false);
+    expect(getExecutableIndustryModule('travel').id).toBe('general');
+    expect(getExecutableIndustryModule('health').id).toBe('hospital_clinic');
   });
 });
 
 describe('resolveSystemPrompt', () => {
-  it('keeps the selected workspace template and adds the action contract', () => {
+  it('uses released workspace templates and adds the action contract', () => {
     const healthPrompt = resolveSystemPrompt('hospital_clinic', null);
     expect(healthPrompt).toContain(
       getIndustryModule('hospital_clinic').systemPrompt.trim()
     );
     expect(healthPrompt).toContain('[MANDATORY INTENT FULFILLMENT POLICY]');
     expect(healthPrompt).toContain('[HEALTHCARE BOOKING BEHAVIOR]');
-
-    const hospitalAliasPrompt = resolveSystemPrompt('hospital', null);
-    expect(hospitalAliasPrompt).toContain('[HEALTHCARE BOOKING BEHAVIOR]');
-
-    const salonPrompt = resolveSystemPrompt('salon', null);
-    expect(salonPrompt).toContain(
-      getIndustryModule('salon').systemPrompt.trim()
-    );
-    expect(salonPrompt).toContain('[WORKSPACE-SPECIFIC CLIENT BEHAVIOR]');
-
-    const travelPrompt = resolveSystemPrompt('travel', '');
-    expect(travelPrompt).toContain(
-      getIndustryModule('travel').systemPrompt.trim()
-    );
-    expect(travelPrompt).toContain('[TRAVEL PACKAGE BEHAVIOR]');
-    expect(travelPrompt).toContain('Never invent those facts');
   });
 
-  it('keeps a non-empty workspace-specific prompt and adds the policy', () => {
+  it('falls back to general behavior for unreleased industries', () => {
+    const travelPrompt = resolveSystemPrompt('travel', '');
+    expect(travelPrompt).toContain(getIndustryModule('general').systemPrompt);
+    expect(travelPrompt).not.toContain('[TRAVEL PACKAGE BEHAVIOR]');
+
+    const salonPrompt = resolveSystemPrompt('salon', null);
+    expect(salonPrompt).toContain(getIndustryModule('general').systemPrompt);
+    expect(salonPrompt).not.toContain(
+      getIndustryModule('salon').systemPrompt.trim()
+    );
+  });
+
+  it('keeps a non-empty workspace prompt without activating its module', () => {
     const prompt = resolveSystemPrompt(
       'coaching',
       '  Reply as an admissions guide.  '
     );
-
     expect(prompt).toContain('Reply as an admissions guide.');
     expect(prompt).toContain('[MANDATORY INTENT FULFILLMENT POLICY]');
-    expect(prompt).toContain('[WORKSPACE-SPECIFIC CLIENT BEHAVIOR]');
+    expect(prompt).not.toContain('[EDUCATION ADMISSION BEHAVIOR]');
   });
 
-  it('does not duplicate the mandatory policy when a resolved prompt is reused', () => {
+  it('does not duplicate the mandatory policy', () => {
     const once = resolveSystemPrompt('hospital_clinic', null);
     const twice = resolveSystemPrompt('hospital_clinic', once);
-
     expect(twice).toBe(once);
     expect(
       twice.match(/\[MANDATORY INTENT FULFILLMENT POLICY\]/g)

@@ -49,19 +49,40 @@ const updatePolicies = new Map(); // "table|policy" -> { using, withCheck }
 
 const CREATE_TABLE_RE =
   /create table(?: if not exists)?\s+(?:public\.)?([a-z_][a-z0-9_]*)/gi;
-const ENABLE_RLS_RE =
-  /alter table(?: if exists)?\s+(?:public\.)?([a-z_][a-z0-9_]*)\s+enable row level security/gi;
+const RLS_STATE_RE =
+  /alter\s+table(?:\s+if\s+exists)?\s+(?:public\.)?"?([a-z_][a-z0-9_]*)"?\s+(enable|disable)\s+row\s+level\s+security/gi;
 const CREATE_POLICY_RE =
-  /create policy\s+(?:if not exists\s+)?"?([a-z0-9_]+)"?\s+on\s+(?:public\.)?([a-z_][a-z0-9_]*)/gi;
+  /create\s+policy\s+("[^"]+"|[a-z_][a-z0-9_]*)\s+on\s+(?:public\.)?"?([a-z_][a-z0-9_]*)"?(?=\s|[;(]|$)/gi;
 const UPDATE_POLICY_RE =
-  /create policy\s+(?:if not exists\s+)?"?([a-z0-9_]+)"?\s+on\s+(?:public\.)?([a-z_][a-z0-9_]*)[^;]*?\bfor update\b/gi;
+  /create\s+policy\s+("[^"]+"|[a-z_][a-z0-9_]*)\s+on\s+(?:public\.)?"?([a-z_][a-z0-9_]*)"?(?=\s|[;(]|$)[^;]*?\bfor\s+update\b/gi;
+const DROP_POLICY_RE =
+  /drop\s+policy\s+(?:if\s+exists\s+)?("[^"]+"|[a-z_][a-z0-9_]*)\s+on\s+(?:public\.)?"?([a-z_][a-z0-9_]*)"?(?=\s|[;(]|$)/gi;
 const HELPER_POLICY_RE =
   /_apply_optional_rls_policy\('public\.([a-z_][a-z0-9_]*)'\s*,\s*\$policy_sql\$\s*CREATE POLICY/gi;
-const USING_RE = /\busing\b/gi;
-const WITH_CHECK_RE = /\bwith check\b/gi;
+const USING_RE = /\busing\s*\(/i;
+const WITH_CHECK_RE = /\bwith\s+check\s*\(/i;
+
+// Preserve SQL strings and identifiers, but do not let comments impersonate
+// clauses or executable policies. Dynamic SQL still needs database-level tests.
+function withoutComments(sql) {
+  return sql.replace(
+    /'(?:''|[^'])*'|"(?:\"\"|[^"])*"|--[^\n]*|\/\*[\s\S]*?\*\//g,
+    (token) =>
+      token.startsWith('--') || token.startsWith('/*')
+        ? token.replace(/[^\n]/g, ' ')
+        : token
+  );
+}
+
+function policyKey(table, policy) {
+  const name = policy.startsWith('"')
+    ? policy.slice(1, -1)
+    : policy.toLowerCase();
+  return `${table.toLowerCase()}|${name}`;
+}
 
 for (const file of files) {
-  const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+  const sql = withoutComments(fs.readFileSync(path.join(dir, file), 'utf8'));
   const rel = path.relative(process.cwd(), path.join(dir, file));
 
   for (const m of sql.matchAll(CREATE_TABLE_RE)) {
@@ -71,8 +92,11 @@ for (const file of files) {
       tablesWithPolicies.set(table, new Set());
   }
 
-  for (const m of sql.matchAll(ENABLE_RLS_RE)) {
-    rlsEnabled.set(m[1].toLowerCase(), rel);
+  for (const m of sql.matchAll(RLS_STATE_RE)) {
+    rlsEnabled.set(
+      m[1].toLowerCase(),
+      m[2].toLowerCase() === 'enable' ? rel : null
+    );
   }
 
   // Policies installed through the dynamic helper target tables that may not
@@ -95,22 +119,19 @@ for (const file of files) {
   // For UPDATE policies, inspect the full statement for USING / WITH CHECK.
   const statements = sql.split(';');
   for (const stmt of statements) {
-    const pm = stmt.match(UPDATE_POLICY_RE);
-    if (!pm) continue;
-    // UPDATE_POLICY_RE has two capture groups: (policy name, table name).
-    const policy = (pm[1] || '').toLowerCase();
-    const table = (pm[2] || '').toLowerCase();
-    if (!table || helperTables.has(table)) continue;
-    const key = `${table}|${policy}`;
-    const hasUsing = USING_RE.test(stmt);
-    const hasWithCheck = WITH_CHECK_RE.test(stmt);
-    USING_RE.lastIndex = 0;
-    WITH_CHECK_RE.lastIndex = 0;
-    const prev = updatePolicies.get(key) || { using: false, withCheck: false };
-    updatePolicies.set(key, {
-      using: prev.using || hasUsing,
-      withCheck: prev.withCheck || hasWithCheck,
-    });
+    for (const [, policy, table] of stmt.matchAll(DROP_POLICY_RE)) {
+      updatePolicies.delete(policyKey(table, policy));
+    }
+    // String.match(/.../g) returns full matches, NOT capture groups.
+    // matchAll retains the policy/table groups and checks every match.
+    for (const [, policy, table] of stmt.matchAll(UPDATE_POLICY_RE)) {
+      if (helperTables.has(table.toLowerCase())) continue;
+      const clauses = stmt.replace(/'(?:''|[^'])*'/g, "''");
+      updatePolicies.set(policyKey(table, policy), {
+        using: USING_RE.test(clauses),
+        withCheck: WITH_CHECK_RE.test(clauses),
+      });
+    }
   }
 
   // Permissive catch-alls stay forbidden (carried over from validate script).
@@ -138,13 +159,12 @@ for (const file of files) {
   }
 }
 
-// Invariant 1: every policy-bearing table must have the ENABLE flag somewhere
-// in the migration history.
+// Invariant 1: the last explicit RLS state must be ENABLE, not DISABLE.
 for (const [table, migrations] of tablesWithPolicies) {
   if (migrations.size === 0) continue;
   if (!rlsEnabled.get(table)) {
     problems.push(
-      `RLS_FLAG_MISSING: table "${table}" has policies in ${[...migrations].join(', ')} but no migration issues ENABLE ROW LEVEL SECURITY (policies are inert)`
+      `RLS_FLAG_MISSING: table "${table}" has policies in ${[...migrations].join(', ')} but its final explicit RLS state is not ENABLE (policies are inert)`
     );
   }
 }

@@ -1,11 +1,5 @@
 /**
  * Industry Module Port implementation — modules layer adapter.
- *
- * Registers the registry-backed implementation into the Core industry port
- * (`src/core/modules/industry-port.ts`). This is the ONLY place where the
- * modules layer meets the platform layers: `src/instrumentation.ts` (server
- * boot) and `src/tests/setup.ts` (test bootstrap) import this module for its
- * registration side effect.
  */
 
 import {
@@ -16,15 +10,24 @@ import {
 import { getAdminClient } from '@/lib/db/server';
 import { matchTourPackagesForMessage } from '@/lib/travel/retrieval';
 import { buildTravelPackagePromptBlock } from '@/lib/travel/prompt';
+import type { AiToolDefinition } from '@/core/ai/types';
+import { registerTourPackageTools } from './travel/ai/tools';
 import {
-  getIndustryModule,
+  getExecutableIndustryModule,
   resolveSystemPrompt,
   INDUSTRY_REGISTRY,
 } from './registry';
-import { resolveIndustryAlias } from './terminology';
+
+const travelTools = new Map<string, AiToolDefinition>();
+registerTourPackageTools({
+  get: (name) => travelTools.get(name),
+  register: (tool) => {
+    travelTools.set(tool.name, tool);
+  },
+});
 
 function toCoreManifest(industry?: string | null): CoreIndustryManifest {
-  const industryModule = getIndustryModule(industry);
+  const industryModule = getExecutableIndustryModule(industry);
   return {
     id: industryModule.id,
     name: industryModule.name,
@@ -39,6 +42,7 @@ function toCoreManifest(industry?: string | null): CoreIndustryManifest {
 }
 
 export const modulesIndustryPort: IndustryModulePort = {
+  getAiTools: () => Array.from(travelTools.values()),
   getIndustryModule: (industry) => toCoreManifest(industry),
   resolveSystemPrompt: (industry, customPrompt) =>
     resolveSystemPrompt(industry, customPrompt),
@@ -48,7 +52,8 @@ export const modulesIndustryPort: IndustryModulePort = {
     userMessage,
     systemPrompt,
   }) => {
-    if (resolveIndustryAlias(industry) !== 'travel') return systemPrompt;
+    const activeModule = getExecutableIndustryModule(industry);
+    if (activeModule.id !== 'travel') return systemPrompt;
     const packageResult = await matchTourPackagesForMessage(
       getAdminClient(),
       accountId,
@@ -59,6 +64,7 @@ export const modulesIndustryPort: IndustryModulePort = {
   getSeededKnowledgeTitles: () => {
     const titles = new Set<string>();
     for (const industryModule of Object.values(INDUSTRY_REGISTRY)) {
+      if (industryModule.status !== 'ACTIVE') continue;
       for (const template of industryModule.kbTemplates ?? []) {
         if (template.questionTitle) titles.add(template.questionTitle);
       }
@@ -68,9 +74,7 @@ export const modulesIndustryPort: IndustryModulePort = {
 };
 
 export function registerIndustryModulePort(): void {
-  // Idempotent: re-registering the same adapter is a no-op in effect.
   setIndustryModulePort(modulesIndustryPort);
 }
 
-// Register on import so a single import of this module is sufficient.
 registerIndustryModulePort();

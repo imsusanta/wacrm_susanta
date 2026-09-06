@@ -6,8 +6,8 @@ import {
   type BuilderStepInput,
 } from '@/lib/automations/steps-tree';
 import {
-  getIndustryModule,
-  isValidIndustry,
+  getExecutableIndustryModule,
+  isSelectableIndustry,
   resolveCanonicalIndustry,
 } from '@/modules/registry';
 
@@ -31,32 +31,26 @@ export async function POST(request: Request) {
       country: _country,
     } = body || {};
 
-    // Preserve existing reset and reconfigure permissions (admin or owner)
-    // separately from owner-only initial onboarding setup.
     const isMaintenanceOp = Boolean(reset || reconfigure);
     const ctx = await requireRole(isMaintenanceOp ? 'admin' : 'owner');
     const admin = getSupabaseAdminClient();
 
     if (reset) {
-      // Template reset resets industry to general and removes seeded workflows
-      // but PRESERVES truthful onboarding_completed_at and onboarding_exempted_at markers.
-      const { error: accErr } = await admin
+      const { error: accountError } = await admin
         .from('accounts')
         .update({
           industry: 'general',
           updated_at: new Date().toISOString(),
         })
         .eq('id', ctx.accountId);
+      if (accountError) throw new Error('Failed to reset workspace');
 
-      if (accErr) {
-        console.error('[onboard route] failed to reset industry:', accErr);
-        throw accErr;
-      }
-      const { data: seededAutos } = await admin
+      const { data: seededAutomations, error: seededError } = await admin
         .from('automations')
         .select('id, metadata')
         .eq('account_id', ctx.accountId);
-      const seededIds = (seededAutos ?? [])
+      if (seededError) throw new Error('Failed to load seeded workflows');
+      const seededIds = (seededAutomations ?? [])
         .filter(
           (automation) =>
             (automation.metadata as Record<string, unknown> | null)
@@ -64,15 +58,17 @@ export async function POST(request: Request) {
         )
         .map((automation) => automation.id);
       if (seededIds.length > 0) {
-        await admin
+        const { error: stepsError } = await admin
           .from('automation_steps')
           .delete()
           .in('automation_id', seededIds);
-        await admin
+        if (stepsError) throw new Error('Failed to remove seeded steps');
+        const { error: workflowsError } = await admin
           .from('automations')
           .delete()
           .eq('account_id', ctx.accountId)
           .in('id', seededIds);
+        if (workflowsError) throw new Error('Failed to remove seeded workflows');
       }
       return NextResponse.json({ success: true, reset: true });
     }
@@ -83,18 +79,15 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    if (!isValidIndustry(industry)) {
+    if (!isSelectableIndustry(industry)) {
       return NextResponse.json(
-        { error: 'Please select a valid business type.' },
+        { error: 'Please select an available business type.' },
         { status: 400 }
       );
     }
 
     const validIndustryId = resolveCanonicalIndustry(industry);
-    const config = getIndustryModule(validIndustryId);
-
-    // Construct tailored system prompt with location & business hours
+    const config = getExecutableIndustryModule(validIndustryId);
     const effectiveLocation = location || city || '';
     let tailoredPrompt = config.systemPrompt;
     if (effectiveLocation || (openingTime && closingTime)) {
@@ -102,10 +95,10 @@ export async function POST(request: Request) {
         openingTime && closingTime
           ? `${workingDays || 'Monday - Saturday'}: ${openingTime} to ${closingTime}`
           : 'Standard operating hours';
-      const locText = effectiveLocation
+      const locationText = effectiveLocation
         ? `Location / City: ${effectiveLocation}`
         : '';
-      tailoredPrompt = `${tailoredPrompt}\n\nBUSINESS PROFILE & OPERATING HOURS:\nBusiness Name: ${workspaceName || 'Our Business'}\n${locText}\nOperating Hours: ${hoursText}\nAlways quote official prices accurately and direct customers politely.`;
+      tailoredPrompt = `${tailoredPrompt}\n\nBUSINESS PROFILE & OPERATING HOURS:\nBusiness Name: ${workspaceName || 'Our Business'}\n${locationText}\nOperating Hours: ${hoursText}\nAlways quote official prices accurately and direct customers politely.`;
     }
 
     const allKnownModules = [
@@ -118,8 +111,6 @@ export async function POST(request: Request) {
       'solo_teacher',
       'salon',
     ];
-
-    // Prepare Knowledge Base items
     const kbItems: Array<{
       category: 'faq' | 'service' | 'pricing' | 'policy' | 'company';
       question_title: string;
@@ -136,69 +127,63 @@ export async function POST(request: Request) {
     }
 
     if (Array.isArray(services) && services.length > 0) {
-      for (const s of services) {
-        if (s?.name && s?.price !== undefined) {
-          const priceFormatted = `₹${Number(s.price).toLocaleString()}`;
-          const desc = s.description ? ` Details: ${s.description}` : '';
+      for (const service of services) {
+        if (service?.name && service?.price !== undefined) {
+          const price = `₹${Number(service.price).toLocaleString()}`;
+          const description = service.description
+            ? ` Details: ${service.description}`
+            : '';
           kbItems.push({
             category: 'pricing',
-            question_title: `How much does ${s.name} cost?`,
-            answer_content: `The price for ${s.name} is ${priceFormatted}.${desc}`,
+            question_title: `How much does ${service.name} cost?`,
+            answer_content: `The price for ${service.name} is ${price}.${description}`,
           });
           kbItems.push({
             category: 'service',
-            question_title: `Do you provide ${s.name}?`,
-            answer_content: `Yes! We offer ${s.name} at ${priceFormatted}.${desc}`,
+            question_title: `Do you provide ${service.name}?`,
+            answer_content: `Yes! We offer ${service.name} at ${price}.${description}`,
           });
         }
       }
     }
 
-    if (config.kbTemplates && config.kbTemplates.length > 0) {
-      config.kbTemplates.forEach((kb) => {
-        kbItems.push({
-          category: kb.category as
-            'faq' | 'service' | 'pricing' | 'policy' | 'company',
-          question_title: kb.questionTitle,
-          answer_content: kb.answerContent,
-        });
+    for (const template of config.kbTemplates || []) {
+      kbItems.push({
+        category: template.category,
+        question_title: template.questionTitle,
+        answer_content: template.answerContent,
       });
     }
 
-    // Prepare campaign templates
-    const campaigns = (config.campaignTemplates || []).map((camp) => ({
-      name: camp.name,
-      category: camp.category,
-      message_body: camp.messageBody,
-      cta_type: camp.ctaType || 'none',
-      cta_text: camp.ctaText || null,
-      cta_url: camp.ctaUrl || null,
-      attachment_url: camp.attachmentUrl || null,
-      attachment_type: camp.attachmentType || null,
+    const campaigns = (config.campaignTemplates || []).map((campaign) => ({
+      name: campaign.name,
+      category: campaign.category,
+      message_body: campaign.messageBody,
+      cta_type: campaign.ctaType || 'none',
+      cta_text: campaign.ctaText || null,
+      cta_url: campaign.ctaUrl || null,
+      attachment_url: campaign.attachmentUrl || null,
+      attachment_type: campaign.attachmentType || null,
     }));
-
-    // Prepare workflows with preserved parent/child and yes/no branching
-    const workflows = (config.workflows || []).map((w) => ({
-      name: w.name,
-      description: w.description || '',
-      trigger_type: w.trigger_type,
-      trigger_config: w.trigger_config || {},
-      is_active: Boolean(w.is_active),
-      seed_key: w.seedKey || '',
+    const workflows = (config.workflows || []).map((workflow) => ({
+      name: workflow.name,
+      description: workflow.description || '',
+      trigger_type: workflow.trigger_type,
+      trigger_config: workflow.trigger_config || {},
+      is_active: Boolean(workflow.is_active),
+      seed_key: workflow.seedKey || '',
       steps: flattenStepsTree(
-        (w.steps || []) as unknown as BuilderStepInput[]
-      ).map((st) => ({
-        id: st.id,
-        parent_step_id: st.parent_step_id,
-        branch: st.branch,
-        step_type: st.step_type,
-        step_config: st.step_config || {},
-        position: st.position,
+        (workflow.steps || []) as unknown as BuilderStepInput[]
+      ).map((step) => ({
+        id: step.id,
+        parent_step_id: step.parent_step_id,
+        branch: step.branch,
+        step_type: step.step_type,
+        step_config: step.step_config || {},
+        position: step.position,
       })),
     }));
 
-    // Call atomic transactional RPC (single transaction with account lock,
-    // pre-write eligibility recheck, all writes, and completion marker)
     const { data: rpcResult, error: rpcError } = await admin.rpc(
       'complete_workspace_onboarding',
       {
@@ -219,20 +204,15 @@ export async function POST(request: Request) {
     );
 
     if (rpcError) {
-      console.error('[onboard route] atomic RPC failed:', rpcError);
+      console.error('[onboard route] Atomic onboarding failed');
       return NextResponse.json(
-        {
-          error: rpcError.message || 'Failed to complete workspace onboarding',
-        },
+        { error: 'Failed to complete workspace onboarding' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
-      industry: validIndustryId,
-      ...rpcResult,
-    });
-  } catch (err) {
-    return toErrorResponse(err);
+    return NextResponse.json({ industry: validIndustryId, ...rpcResult });
+  } catch (error) {
+    return toErrorResponse(error);
   }
 }

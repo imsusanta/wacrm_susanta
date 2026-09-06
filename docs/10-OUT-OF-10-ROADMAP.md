@@ -1,6 +1,6 @@
 # Helpa 10/10 Engineering Roadmap
 
-This document is the canonical improvement plan for moving Helpa from a strong early-production SaaS to an operationally mature platform. Historical audit reports remain evidence; this roadmap owns current priorities.
+This document is the canonical improvement plan for moving Helpa toward an operationally mature SaaS. Historical audit reports remain evidence; this roadmap owns current priorities. It is a target, not a certification of the current production deployment. Checked implementation tasks do not replace runtime or release verification.
 
 ## Definition of 10/10
 
@@ -14,6 +14,31 @@ Helpa reaches the target when every item below has objective, reproducible evide
 - Performance and reliability targets are measured, alerted, and reviewed.
 - Public version, release, deployment, and product claims are consistent.
 - The primary customer profile has a focused onboarding and activation journey.
+
+## Current hardening work — September 2026
+
+The changes in draft PR #253 are not yet a verified production release. Existing required CI, deployment, live-database, and recovery evidence must pass on the exact candidate commit before merge. A skipped check is not evidence of success.
+
+Implemented changes awaiting complete release validation include persisted admin reporting, membership-backed tenant policies, account-scoped foreign keys, transactional WhatsApp and Razorpay processing, bounded AI reference data, and unavailable-module gating.
+
+Additional subscription protection enforces the paid interval at read time, denies invalid/future/expired periods, removes the blanket Pro-plan feature bypass, and prevents the expiry worker from overwriting concurrent renewals. Migration smoke testing must be explicitly local-only and require acknowledgement before deleting local data.
+
+### Architecture acceptance gates, in execution order
+
+| Gate | Required evidence before calling it complete |
+| --- | --- |
+| 1. Reproducible release | Clean install; formatting, strict lint, typecheck, unit tests, security checks, production build, and critical browser tests pass on one commit. |
+| 2. Canonical platform boundaries | Core business rules are independent of UI and provider SDKs; repository/provider adapters own I/O; no Appwrite compatibility path can authorize Supabase tenant access. Retire compatibility paths only after confirming rollback requirements. |
+| 3. Tenant isolation | Real authenticated database tests for two tenants, revoked memberships, forged JWT account claims, cross-account foreign keys, storage paths, and privileged RPC grants. Static SQL scans and mocks are not sufficient. |
+| 4. Billing authority | Authorization reads persisted active plans without display-catalog fallbacks; paid-period expiry works without a cron job; renewal and cancellation races, exact amount/currency, replay, and transaction rollback are tested. |
+| 5. Atomic quota admission | Reserve capacity before provider work in one transaction; concurrent requests cannot overrun limits; retries cannot double-charge; release/settlement rules are explicit; AI token and currency budgets are bounded. Atomic increments alone are insufficient. |
+| 6. Worker recovery | Prove bounded concurrency, tenant fairness, leased claims, shutdown draining, retries, dead-letter handling, and ambiguous provider-result reconciliation. Do not promise exactly-once external delivery without provider support. |
+| 7. Database lifecycle | Apply all migrations to a disposable local database and an upgrade fixture; verify constraints against representative existing data; demonstrate backup restore and document forward repair. Never reset a linked remote database as a smoke test. |
+| 8. AI and provider resilience | Account-scoped credentials/data, denied undecryptable credentials, timeouts, circuit breakers, prompt/model versioning, evaluation cases, and explicit untrusted-reference handling. |
+| 9. Operational proof | App/worker release-SHA parity, actionable SLO alerts, measured load tests against an agreed workload, provider-outage and duplicate-webhook drills, and a successful restore drill. Keep Target and Observed results separate. |
+| 10. Release and security sign-off | Confirm exposed credential rotation/revocation, required branch-protection checks, access review, privacy/retention review, successful staging deployment, and verified production promotion. |
+
+Keep the modular monolith and independently deployed workers unless measured bottlenecks justify additional services. More services, dashboards, or documents do not increase the score by themselves.
 
 ## P0 — Merge protection and release truthfulness
 
@@ -29,7 +54,8 @@ Helpa reaches the target when every item below has objective, reproducible evide
 ## P1 — Maintainability and test confidence
 
 - [ ] Refactor dashboard pages larger than 400 lines into feature components, hooks, and service modules.
-- [x] Add coverage reporting with minimum thresholds for authentication, tenant guards, webhook verification, billing, outbox, and encryption modules.
+- [x] Add coverage reporting with minimum thresholds for authentication, tenant guards, encryption, and outbound persistence.
+- [ ] Add and enforce coverage thresholds for billing, webhook verification, and outbox processing, including concurrency and rollback cases.
 - [x] Add contract tests for Meta WhatsApp and payment-provider boundaries.
 - [x] Document a staging-only restore drill (`docs/operations/runbook-backup-restore.md`). *(Awaiting operator execution)*
 - [ ] Add migration rollback tests and execute a restore drill.

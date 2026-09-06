@@ -89,6 +89,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Local migration command safety
+        run: node --test scripts/tests/supabase-smoke-safety.test.mjs
       - name: Unit tests
         run: npm test
       - name: Tenant isolation tests

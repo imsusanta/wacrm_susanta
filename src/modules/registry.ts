@@ -52,7 +52,6 @@ export const generalModule: IndustryModule = {
     '/automations',
     '/integrations',
   ],
-
   sidebar: [
     { href: '/dashboard', label: 'Dashboard', iconName: 'LayoutDashboard' },
     { href: '/inbox', label: 'WhatsApp Chats', iconName: 'MessageSquare' },
@@ -63,10 +62,13 @@ export const generalModule: IndustryModule = {
       iconName: 'Megaphone',
       roleMin: 'admin',
     },
-    { href: '/knowledge-base', label: 'Knowledge Base', iconName: 'FileText' },
+    {
+      href: '/knowledge-base',
+      label: 'Knowledge Base',
+      iconName: 'FileText',
+    },
     { href: '/settings', label: 'Settings', iconName: 'Settings' },
   ],
-
   dashboardMetrics: [
     {
       key: 'conversations_active',
@@ -76,10 +78,8 @@ export const generalModule: IndustryModule = {
       queryType: 'count',
     },
   ],
-
   systemPrompt:
     'You are acting as a helpful and polite AI Assistant. Assist the client with generic details and hand off to human agents when requested.',
-
   kbTemplates: [
     {
       category: 'faq',
@@ -87,7 +87,6 @@ export const generalModule: IndustryModule = {
       answerContent: 'We are open Monday to Friday from 9:00 AM to 6:00 PM.',
     },
   ],
-
   campaignTemplates: [
     {
       name: 'General Offer Newsletter',
@@ -97,12 +96,10 @@ export const generalModule: IndustryModule = {
       ctaType: 'none',
     },
   ],
-
   copilotConfig: {
     summaryFields: ['status'],
     quickActions: [],
   },
-
   pipelineStages: [
     { name: 'New Lead', position: 1, color: '#3b82f6' },
     { name: 'Won', position: 2, color: '#10b981' },
@@ -141,7 +138,7 @@ export interface BusinessTypeOption {
   iconName: string;
 }
 
-export const BUSINESS_TYPE_OPTIONS: readonly BusinessTypeOption[] = [
+const BUSINESS_TYPE_CATALOG: readonly BusinessTypeOption[] = [
   {
     id: 'hospital_clinic',
     label: 'Health',
@@ -206,7 +203,7 @@ export function isValidIndustry(industry: unknown): boolean {
   const normalized = industry.trim().toLowerCase();
   return Boolean(
     INDUSTRY_ALIASES[normalized as keyof typeof INDUSTRY_ALIASES] ||
-    INDUSTRY_REGISTRY[normalized]
+      INDUSTRY_REGISTRY[normalized]
   );
 }
 
@@ -222,19 +219,32 @@ export function getIndustryModule(
   return INDUSTRY_REGISTRY[industryKey] || generalModule;
 }
 
-/**
- * A workspace may override its default industry instructions. Empty or
- * missing overrides must still resolve to the appropriate industry prompt.
- * Every resolved prompt receives the mandatory intent-fulfillment contract.
- */
+export function isSelectableIndustry(industry: unknown): boolean {
+  if (!isValidIndustry(industry)) return false;
+  return getIndustryModule(String(industry)).status === 'ACTIVE';
+}
+
+/** Runtime consumers must never execute manifests that are not released. */
+export function getExecutableIndustryModule(
+  industry: string | null | undefined
+): IndustryModule {
+  const industryModule = getIndustryModule(industry);
+  return industryModule.status === 'ACTIVE' ? industryModule : generalModule;
+}
+
+/** Only released industries are offered during signup and onboarding. */
+export const BUSINESS_TYPE_OPTIONS: readonly BusinessTypeOption[] =
+  BUSINESS_TYPE_CATALOG.filter((option) => isSelectableIndustry(option.id));
+
 export function resolveSystemPrompt(
   industry: string | null | undefined,
   customPrompt: string | null | undefined
 ): string {
-  const industryModule = getIndustryModule(industry);
+  const industryModule = getExecutableIndustryModule(industry);
   const prompt = customPrompt?.trim();
   const selectedPrompt = prompt || industryModule.systemPrompt;
   return withIntentFulfillmentPolicy(selectedPrompt, industryModule.id);
 }
+
 export * from './types';
 export * from './registry';

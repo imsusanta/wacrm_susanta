@@ -1,7 +1,6 @@
-import { getAdminClient } from '@/lib/db/server';
 import crypto from 'node:crypto';
+import { getAdminClient } from '@/lib/db/server';
 import {
-  persistOutboundMessage,
   touchConversationPreview,
   outboundPreviewText,
 } from '@/lib/whatsapp/persist-outbound-message';
@@ -33,6 +32,7 @@ export type OutboxCreateResult =
       ok: true;
       status: 'created' | 'existing';
       outboxId: string;
+      messageId?: string;
       existingStatus?: string;
       providerMessageId?: string;
       requestHashMatches: boolean;
@@ -44,527 +44,313 @@ export type OutboxCreateResult =
       retryable: boolean;
     };
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (Array.isArray(value)) return asRecord(value[0]);
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function errorMessage(value: unknown): string {
+  if (value instanceof Error) return value.message;
+  if (value && typeof value === 'object' && 'message' in value) {
+    return String((value as { message?: unknown }).message || 'database error');
+  }
+  return String(value || 'database error');
+}
+
+function persistenceFailure(): OutboxCreateResult {
+  return {
+    ok: false,
+    code: 'OUTBOX_PERSISTENCE_FAILED',
+    message: 'Unable to persist the outbound message safely. Please retry.',
+    retryable: true,
+  };
+}
+
+function requireNonBlank(value: string | undefined, label: string): string {
+  const normalized = value?.trim();
+  if (!normalized) throw new Error(`${label} is required`);
+  return normalized;
+}
+
 export class OutboxService {
-  /**
-   * Pre-send durable Outbox persistence with strict idempotency and hash verification.
-   */
+  /** Atomically persists the local message and delivery job before provider I/O. */
   static async createPreSendOutbox(
     payload: OutboxEntryPayload
   ): Promise<OutboxCreateResult> {
-    const dbAdmin = getAdminClient();
-    const now = new Date().toISOString();
-    const correlationId = payload.correlationId || crypto.randomUUID();
-
-    // 0. Primary Transactional Outbox: atomic enqueue in public.whatsapp_outbox + messages
-    if (
-      payload.conversationId &&
-      typeof (dbAdmin as unknown as { rpc?: unknown }).rpc === 'function'
-    ) {
-      try {
-        const { data: rpcData, error: rpcError } = await dbAdmin.rpc(
-          'enqueue_whatsapp_outbound_message',
-          {
-            p_account_id: payload.accountId,
-            p_conversation_id: payload.conversationId,
-            p_idempotency_key: payload.idempotencyKey,
-            p_provider: payload.provider || 'meta',
-            p_content_type: payload.messageType || 'text',
-            p_content_text: payload.messageSnapshot?.contentText ?? null,
-            p_sender_type: payload.messageSnapshot?.senderId ? 'agent' : 'bot',
-            p_media_url: payload.messageSnapshot?.mediaUrl ?? null,
-            p_max_attempts: 8,
-            p_payload: {
-              requestHash: payload.requestHash,
-              channel: payload.channel || 'whatsapp',
-              correlationId,
-              messageSnapshot: payload.messageSnapshot || null,
-            },
-          }
-        );
-
-        if (!rpcError && rpcData && typeof rpcData === 'object') {
-          const res = rpcData as Record<string, unknown>;
-          if (res.ok) {
-            if (res.duplicate) {
-              return {
-                ok: true,
-                status: 'existing',
-                outboxId: String(res.outbox_id || ''),
-                existingStatus: String(res.status || 'processing'),
-                providerMessageId: res.provider_message_id
-                  ? String(res.provider_message_id)
-                  : undefined,
-                requestHashMatches: true,
-              };
-            }
-            return {
-              ok: true,
-              status: 'created',
-              outboxId: String(res.outbox_id || ''),
-              requestHashMatches: true,
-            };
-          }
-        }
-      } catch {
-        // Fall back to outbound_outbox legacy path
-      }
-    }
-
-    // 1. Check if an existing outbox record already exists for (accountId, idempotencyKey)
-    let existingDoc: Record<string, unknown> | null = null;
     try {
-      const { data } = await dbAdmin
-        .from('outbound_outbox')
-        .select('*')
-        .eq('account_id', payload.accountId)
-        .eq('idempotency_key', payload.idempotencyKey)
-        .maybeSingle();
-      if (data) existingDoc = data as Record<string, unknown>;
-    } catch {
-      // Fallback
-    }
-
-    if (!existingDoc) {
-      try {
-        const { data } = await dbAdmin
-          .from('outbound_outbox')
-          .select('*')
-          .eq('accountId', payload.accountId)
-          .eq('idempotencyKey', payload.idempotencyKey)
-          .maybeSingle();
-        if (data) existingDoc = data as Record<string, unknown>;
-      } catch {
-        // Ignore
-      }
-    }
-
-    if (existingDoc) {
-      const existingHash = String(
-        (existingDoc.payload as Record<string, unknown>)?.requestHash ||
-          existingDoc.requestHash ||
-          existingDoc.request_hash ||
-          ''
+      const accountId = requireNonBlank(payload.accountId, 'accountId');
+      const conversationId = requireNonBlank(
+        payload.conversationId,
+        'conversationId'
       );
-      const hashMatches = !existingHash || existingHash === payload.requestHash;
+      const idempotencyKey = requireNonBlank(
+        payload.idempotencyKey,
+        'idempotencyKey'
+      );
+      const requestHash = requireNonBlank(payload.requestHash, 'requestHash');
+      const db = getAdminClient();
+      const correlationId = payload.correlationId || crypto.randomUUID();
 
-      if (!hashMatches) {
-        return {
-          ok: false,
-          code: 'IDEMPOTENCY_CONFLICT',
-          message:
-            'Idempotency key has already been used with a different message payload',
-          retryable: false,
-        };
-      }
-
-      return {
-        ok: true,
-        status: 'existing',
-        outboxId: String(existingDoc.id || existingDoc.$id),
-        existingStatus: String(existingDoc.status || 'processing'),
-        providerMessageId: existingDoc.meta_message_id
-          ? String(existingDoc.meta_message_id)
-          : existingDoc.metaMessageId
-            ? String(existingDoc.metaMessageId)
-            : existingDoc.providerMessageId
-              ? String(existingDoc.providerMessageId)
-              : undefined,
-        requestHashMatches: true,
-      };
-    }
-
-    // 2. Insert new outbox record before sending to Meta
-    try {
-      let createdId: string | null = null;
-      let insertError: { code?: unknown; message?: string } | null = null;
-
-      const pgPayload = {
-        account_id: payload.accountId,
-        idempotency_key: payload.idempotencyKey,
-        conversation_id: payload.conversationId || null,
-        contact_id: payload.contactId || null,
-        message_type: payload.messageType || 'text',
-        payload: {
-          requestHash: payload.requestHash,
-          channel: payload.channel || 'whatsapp',
-          correlationId,
-          messageSnapshot: payload.messageSnapshot || null,
-        },
-        status: 'processing',
-        created_at: now,
-        updated_at: now,
-      };
-
-      const res = await dbAdmin
-        .from('outbound_outbox')
-        .insert(pgPayload)
-        .select('id')
-        .single();
-
-      if (res.data?.id) {
-        createdId = String(res.data.id);
-      } else {
-        insertError = res.error;
-        // Fallback to legacy schema
-        const legacyRes = await dbAdmin
-          .from('outbound_outbox')
-          .insert({
-            accountId: payload.accountId,
-            idempotencyKey: payload.idempotencyKey,
-            requestHash: payload.requestHash,
+      const { data, error } = await db.rpc(
+        'enqueue_whatsapp_outbound_message',
+        {
+          p_account_id: accountId,
+          p_conversation_id: conversationId,
+          p_idempotency_key: idempotencyKey,
+          p_provider: payload.provider || 'meta',
+          p_content_type: payload.messageType || 'text',
+          p_content_text: payload.messageSnapshot?.contentText ?? null,
+          p_sender_type: payload.messageSnapshot?.senderId ? 'agent' : 'bot',
+          p_media_url: payload.messageSnapshot?.mediaUrl ?? null,
+          p_max_attempts: 8,
+          p_payload: {
+            requestHash,
             channel: payload.channel || 'whatsapp',
-            conversationId: payload.conversationId,
+            correlationId,
             contactId: payload.contactId || null,
-            status: 'processing',
-            attempts: 0,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .select('id')
-          .single();
-
-        if (legacyRes.data?.id) {
-          createdId = String(legacyRes.data.id);
-          insertError = null;
-        } else {
-          insertError = legacyRes.error || insertError;
+            messageSnapshot: payload.messageSnapshot || null,
+          },
         }
+      );
+
+      if (error) {
+        console.error('[OutboxService] Atomic enqueue failed:', errorMessage(error));
+        return persistenceFailure();
       }
 
-      if (!createdId) {
-        // Check for concurrent conflict
-        const isConflict =
-          insertError?.code === 409 ||
-          insertError?.code === '23505' ||
-          /duplicate|conflict|unique/i.test(insertError?.message || '');
-
-        if (isConflict) {
-          const { data: recheck } = await dbAdmin
-            .from('outbound_outbox')
-            .select('*')
-            .eq('account_id', payload.accountId)
-            .eq('idempotency_key', payload.idempotencyKey)
-            .maybeSingle();
-
-          if (recheck) {
-            const recheckDoc = recheck as Record<string, unknown>;
-            const existingHash = String(
-              (recheckDoc.payload as Record<string, unknown>)?.requestHash ||
-                recheckDoc.requestHash ||
-                recheckDoc.request_hash ||
-                ''
-            );
-            const hashMatches =
-              !existingHash || existingHash === payload.requestHash;
-            if (!hashMatches) {
-              return {
-                ok: false,
-                code: 'IDEMPOTENCY_CONFLICT',
-                message:
-                  'Idempotency key has already been used with a different message payload',
-                retryable: false,
-              };
-            }
-            return {
-              ok: true,
-              status: 'existing',
-              outboxId: String(recheckDoc.id || recheckDoc.$id),
-              existingStatus: String(recheckDoc.status || 'processing'),
-              providerMessageId: recheckDoc.meta_message_id
-                ? String(recheckDoc.meta_message_id)
-                : recheckDoc.metaMessageId
-                  ? String(recheckDoc.metaMessageId)
-                  : undefined,
-              requestHashMatches: true,
-            };
-          }
+      const result = asRecord(data);
+      if (!result?.ok) {
+        if (result?.error === 'IDEMPOTENCY_CONFLICT') {
+          return {
+            ok: false,
+            code: 'IDEMPOTENCY_CONFLICT',
+            message:
+              'Idempotency key has already been used with a different message payload',
+            retryable: false,
+          };
         }
+        console.error(
+          '[OutboxService] Atomic enqueue was rejected:',
+          String(result?.error || 'unknown result')
+        );
+        return persistenceFailure();
+      }
 
-        return {
-          ok: false,
-          code: 'OUTBOX_PERSISTENCE_FAILED',
-          message:
-            insertError?.message ||
-            'Failed to persist durable outbox before provider send',
-          retryable: true,
-        };
+      const outboxId = String(result.outbox_id || '');
+      const messageId = String(result.message_id || '');
+      if (!outboxId || !messageId) {
+        console.error('[OutboxService] Atomic enqueue returned incomplete IDs');
+        return persistenceFailure();
       }
 
       return {
         ok: true,
-        status: 'created',
-        outboxId: createdId,
+        status: result.duplicate ? 'existing' : 'created',
+        outboxId,
+        messageId,
+        existingStatus: result.duplicate
+          ? String(result.status || 'processing')
+          : undefined,
+        providerMessageId: result.provider_message_id
+          ? String(result.provider_message_id)
+          : undefined,
         requestHashMatches: true,
       };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return {
-        ok: false,
-        code: 'OUTBOX_PERSISTENCE_FAILED',
-        message: `Unexpected error persisting outbox: ${message}`,
-        retryable: true,
-      };
+    } catch (error) {
+      console.error(
+        '[OutboxService] Atomic enqueue failed:',
+        errorMessage(error)
+      );
+      return persistenceFailure();
     }
   }
 
-  /**
-   * Mark outbox record as sent with Meta provider message ID.
-   */
+  /** Atomically records provider acceptance on the outbox and local message. */
   static async markSent(
     outboxId: string,
     accountId: string,
     providerMessageId: string
   ): Promise<void> {
-    const dbAdmin = getAdminClient();
-    const now = new Date().toISOString();
-    try {
-      await dbAdmin
-        .from('whatsapp_outbox')
-        .update({
-          status: 'sent',
-          provider_message_id: providerMessageId,
-          sent_at: now,
-          updated_at: now,
-        })
-        .eq('id', outboxId)
-        .eq('account_id', accountId);
-    } catch {}
+    const db = getAdminClient();
+    const normalizedOutboxId = requireNonBlank(outboxId, 'outboxId');
+    const normalizedAccountId = requireNonBlank(accountId, 'accountId');
+    const normalizedProviderId = requireNonBlank(
+      providerMessageId,
+      'providerMessageId'
+    );
 
-    try {
-      const res = await dbAdmin
-        .from('outbound_outbox')
-        .update({
-          status: 'sent',
-          meta_message_id: providerMessageId,
-          updated_at: now,
-        })
-        .eq('id', outboxId)
-        .eq('account_id', accountId);
-      if (res.error) {
-        await dbAdmin
-          .from('outbound_outbox')
-          .update({
-            status: 'sent',
-            metaMessageId: providerMessageId,
-            updatedAt: now,
-          })
-          .eq('id', outboxId)
-          .eq('accountId', accountId);
+    const { data, error } = await db.rpc(
+      'complete_whatsapp_outbound_message',
+      {
+        p_outbox_id: normalizedOutboxId,
+        p_account_id: normalizedAccountId,
+        p_provider_message_id: normalizedProviderId,
       }
-    } catch (err: unknown) {
-      console.warn(
-        '[OutboxService] Failed to mark outbox sent:',
-        err instanceof Error ? err.message : String(err)
+    );
+    const result = asRecord(data);
+    if (!error && result?.ok) return;
+
+    const reason = error
+      ? `Atomic completion failed: ${errorMessage(error)}`
+      : `Atomic completion rejected: ${String(result?.error || 'unknown')}`;
+    try {
+      await this.markReconciliationRequired(
+        normalizedOutboxId,
+        normalizedAccountId,
+        normalizedProviderId,
+        reason
+      );
+    } catch (reconciliationError) {
+      console.error(
+        '[OutboxService] Could not preserve reconciliation state:',
+        errorMessage(reconciliationError)
       );
     }
+    throw new Error('Failed to complete WhatsApp outbox delivery');
   }
 
-  /**
-   * Handle Meta success when local DB persistence fails.
-   * Marks outbox as reconciliation_required so the worker can repair local messages
-   * WITHOUT resending to Meta!
-   */
+  /** Records provider success without permitting a provider resend. */
   static async markReconciliationRequired(
     outboxId: string,
     accountId: string,
     providerMessageId: string,
     dbErrorMessage: string
   ): Promise<void> {
-    const dbAdmin = getAdminClient();
-    const now = new Date().toISOString();
-    try {
-      await dbAdmin
-        .from('whatsapp_outbox')
-        .update({
-          status: 'reconciliation_required',
-          provider_message_id: providerMessageId,
-          last_error_message: dbErrorMessage.slice(0, 255),
-          updated_at: now,
-        })
-        .eq('id', outboxId)
-        .eq('account_id', accountId);
-    } catch {}
+    const db = getAdminClient();
+    const { data, error } = await db
+      .from('whatsapp_outbox')
+      .update({
+        status: 'reconciliation_required',
+        provider_message_id: requireNonBlank(
+          providerMessageId,
+          'providerMessageId'
+        ),
+        last_error_message: String(dbErrorMessage || 'Local persistence failed').slice(
+          0,
+          255
+        ),
+        lease_expires_at: null,
+        locked_at: null,
+        locked_by: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', requireNonBlank(outboxId, 'outboxId'))
+      .eq('account_id', requireNonBlank(accountId, 'accountId'))
+      .select('id')
+      .maybeSingle();
 
-    try {
-      const res = await dbAdmin
-        .from('outbound_outbox')
-        .update({
-          status: 'reconciliation_required',
-          meta_message_id: providerMessageId,
-          error_message: dbErrorMessage.slice(0, 255),
-          updated_at: now,
-        })
-        .eq('id', outboxId)
-        .eq('account_id', accountId);
-      if (res.error) {
-        await dbAdmin
-          .from('outbound_outbox')
-          .update({
-            status: 'reconciliation_required',
-            metaMessageId: providerMessageId,
-            lastErrorCode: dbErrorMessage.slice(0, 255),
-            updatedAt: now,
-          })
-          .eq('id', outboxId)
-          .eq('accountId', accountId);
-      }
-    } catch (err: unknown) {
-      console.error(
-        '[OutboxService] Failed to mark outbox reconciliation_required:',
-        err instanceof Error ? err.message : String(err)
+    if (error || !data) {
+      throw new Error(
+        `Failed to mark WhatsApp outbox for reconciliation: ${errorMessage(error)}`
       );
     }
   }
 
-  /**
-   * Mark outbox record as dead_letter on provider error.
-   */
+  /** Permanently closes a provider-rejected delivery job. */
   static async markDeadLetter(
     outboxId: string,
     accountId: string,
-    errorMessage: string
+    message: string
   ): Promise<void> {
-    const dbAdmin = getAdminClient();
+    const db = getAdminClient();
     const now = new Date().toISOString();
-    try {
-      await dbAdmin
-        .from('whatsapp_outbox')
-        .update({
-          status: 'dead_letter',
-          dead_lettered_at: now,
-          last_error_message: errorMessage.slice(0, 255),
-          updated_at: now,
-        })
-        .eq('id', outboxId)
-        .eq('account_id', accountId);
-    } catch {}
+    const { data, error } = await db
+      .from('whatsapp_outbox')
+      .update({
+        status: 'dead_letter',
+        dead_lettered_at: now,
+        last_error_message: String(message || 'Permanent provider error').slice(
+          0,
+          255
+        ),
+        lease_expires_at: null,
+        locked_at: null,
+        locked_by: null,
+        updated_at: now,
+      })
+      .eq('id', requireNonBlank(outboxId, 'outboxId'))
+      .eq('account_id', requireNonBlank(accountId, 'accountId'))
+      .select('id')
+      .maybeSingle();
 
-    try {
-      const res = await dbAdmin
-        .from('outbound_outbox')
-        .update({
-          status: 'dead_letter',
-          error_message: errorMessage.slice(0, 255),
-          updated_at: now,
-        })
-        .eq('id', outboxId)
-        .eq('account_id', accountId);
-      if (res.error) {
-        await dbAdmin
-          .from('outbound_outbox')
-          .update({
-            status: 'dead_letter',
-            lastErrorCode: errorMessage.slice(0, 255),
-            attempts: 1,
-            updatedAt: now,
-          })
-          .eq('id', outboxId)
-          .eq('accountId', accountId);
-      }
-    } catch (err: unknown) {
-      console.warn(
-        '[OutboxService] Failed to mark outbox dead_letter:',
-        err instanceof Error ? err.message : String(err)
+    if (error || !data) {
+      throw new Error(
+        `Failed to mark WhatsApp outbox dead letter: ${errorMessage(error)}`
       );
     }
   }
 
-  /**
-   * Background reconciliation for reconciliation_required outbox documents.
-   * Creates local message records without resending to Meta.
-   */
-  static async reconcilePendingMessages(): Promise<number> {
-    const dbAdmin = getAdminClient();
-    let pending: Record<string, unknown>[] = [];
-    try {
-      const { data } = await dbAdmin
-        .from('outbound_outbox')
-        .select('*')
-        .eq('status', 'reconciliation_required')
-        .limit(20);
-      if (data && Array.isArray(data)) {
-        pending = data as Record<string, unknown>[];
+  /** Claims and repairs provider-accepted messages without resending them. */
+  static async reconcilePendingMessages(
+    batchSize = 20,
+    workerId = `reconcile-${process.pid}-${crypto.randomUUID()}`
+  ): Promise<number> {
+    const db = getAdminClient();
+    const limit = Math.min(Math.max(Math.trunc(batchSize), 1), 100);
+    const { data, error } = await db.rpc(
+      'claim_whatsapp_reconciliation_batch',
+      {
+        p_worker_id: workerId,
+        p_batch_size: limit,
+        p_lease_seconds: 120,
       }
-    } catch {
-      // Ignore
+    );
+    if (error) {
+      throw new Error(`Failed to claim reconciliation work: ${errorMessage(error)}`);
     }
 
-    if (pending.length === 0) {
-      return 0;
-    }
+    const pending = Array.isArray(data)
+      ? (data as Record<string, unknown>[])
+      : [];
+    let reconciled = 0;
 
-    let reconciledCount = 0;
-    for (const doc of pending) {
-      const docId = String(doc.id || doc.$id || '');
-      const accountId = String(doc.account_id || doc.accountId || '');
-      const conversationId = String(
-        doc.conversation_id || doc.conversationId || ''
-      );
-      const providerMessageId = String(
-        doc.meta_message_id || doc.metaMessageId || doc.providerMessageId || ''
-      );
-
-      if (!docId || !accountId || !conversationId || !providerMessageId) {
-        continue;
-      }
+    for (const row of pending) {
+      const outboxId = String(row.id || '');
+      const accountId = String(row.account_id || '');
+      const conversationId = String(row.conversation_id || '');
+      const providerMessageId = String(row.provider_message_id || '');
 
       try {
-        // Check if message already exists
-        let existingMsg: { id: string } | null = null;
-        try {
-          const { data } = await dbAdmin
-            .from('messages')
-            .select('id')
-            .eq('account_id', accountId)
-            .eq('message_id', providerMessageId)
-            .maybeSingle();
-          if (data) existingMsg = data;
-        } catch {
-          // Fallback
+        if (!outboxId || !accountId || !conversationId || !providerMessageId) {
+          if (outboxId && accountId) {
+            await this.markDeadLetter(
+              outboxId,
+              accountId,
+              'Reconciliation row is missing required identifiers'
+            );
+          }
+          continue;
         }
 
-        if (!existingMsg) {
-          const snapshot = ((doc.payload as Record<string, unknown> | null)
-            ?.messageSnapshot ||
-            (doc.messageSnapshot as OutboxMessageSnapshot | undefined) ||
-            {}) as Partial<OutboxMessageSnapshot>;
-          const contentType = snapshot.contentType || 'text';
-          const contentText =
-            snapshot.contentText ?? 'Message sent (reconciled)';
-          const persistRes = await persistOutboundMessage({
-            accountId,
-            conversationId,
-            senderId: snapshot.senderId,
-            contentType,
-            contentText,
-            mediaUrl: snapshot.mediaUrl ?? null,
-            templateName: snapshot.templateName ?? null,
-            providerMessageId,
-            replyToMessageId: snapshot.replyToMessageId,
-          });
-          if (!persistRes.ok) {
-            throw new Error(persistRes.error);
-          }
+        await this.markSent(outboxId, accountId, providerMessageId);
+        const payload = asRecord(row.provider_result) || {};
+        const snapshot = asRecord(payload.messageSnapshot) || {};
+        const contentType = String(snapshot.contentType || 'text');
+        const contentText =
+          snapshot.contentText == null ? null : String(snapshot.contentText);
+        try {
           await touchConversationPreview({
             accountId,
             conversationId,
-            previewText: outboundPreviewText({
-              contentText,
-              contentType,
-            }),
+            previewText: outboundPreviewText({ contentText, contentType }),
           });
+        } catch (previewError) {
+          console.warn(
+            '[OutboxService] Reconciled message but preview update failed:',
+            errorMessage(previewError)
+          );
         }
-
-        await this.markSent(docId, accountId, providerMessageId);
-        reconciledCount++;
-      } catch (err) {
+        reconciled++;
+      } catch (reconciliationError) {
         console.error(
-          `[OutboxService] Reconcile error for doc ${docId}:`,
-          err instanceof Error ? err.message : String(err)
+          `[OutboxService] Reconciliation failed for ${outboxId || 'unknown'}:`,
+          errorMessage(reconciliationError)
         );
       }
     }
 
-    return reconciledCount;
+    return reconciled;
   }
 }
