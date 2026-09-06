@@ -10,11 +10,21 @@ import {
 import { getAdminClient } from '@/lib/db/server';
 import { matchTourPackagesForMessage } from '@/lib/travel/retrieval';
 import { buildTravelPackagePromptBlock } from '@/lib/travel/prompt';
+import type { AiToolDefinition } from '@/core/ai/types';
+import { registerTourPackageTools } from './travel/ai/tools';
 import {
   getExecutableIndustryModule,
   resolveSystemPrompt,
   INDUSTRY_REGISTRY,
 } from './registry';
+
+const travelTools = new Map<string, AiToolDefinition>();
+registerTourPackageTools({
+  get: (name) => travelTools.get(name),
+  register: (tool) => {
+    travelTools.set(tool.name, tool);
+  },
+});
 
 function toCoreManifest(industry?: string | null): CoreIndustryManifest {
   const industryModule = getExecutableIndustryModule(industry);
@@ -24,8 +34,7 @@ function toCoreManifest(industry?: string | null): CoreIndustryManifest {
     aiRole: industryModule.aiRole,
     systemPrompt: industryModule.systemPrompt,
     terminology: industryModule.terminology as
-      | Record<string, string>
-      | undefined,
+      Record<string, string> | undefined,
     safetyKeywords: industryModule.safetyKeywords,
     safetyResponse: industryModule.safetyResponse,
     entityLabel: industryModule.entityConfigs?.contacts?.label,
@@ -33,6 +42,7 @@ function toCoreManifest(industry?: string | null): CoreIndustryManifest {
 }
 
 export const modulesIndustryPort: IndustryModulePort = {
+  getAiTools: () => Array.from(travelTools.values()),
   getIndustryModule: (industry) => toCoreManifest(industry),
   resolveSystemPrompt: (industry, customPrompt) =>
     resolveSystemPrompt(industry, customPrompt),

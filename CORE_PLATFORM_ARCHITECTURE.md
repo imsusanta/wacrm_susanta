@@ -4,6 +4,20 @@
 **Architecture Style**: Modular Monolith with Clean Service Boundaries  
 **Rule**: `Industry Modules → Core Platform` (Core NEVER imports Industry Modules)
 
+## Implementation status
+
+The modular-monolith boundary is being enforced incrementally, not claimed as
+complete. Travel AI tool implementations are owned by `src/modules/travel/ai`
+and supplied through the Core `IndustryModulePort`; the platform registry
+does not import concrete travel services. The server Supabase facade retains
+SDK types, but table-specific generated typing still depends on a verified
+canonical schema.
+
+See [Industry tool boundaries and typed database client facade](./docs/architecture/INDUSTRY_TOOL_BOUNDARIES.md)
+for the implemented dependency direction, regression tests, and remaining
+work. The known migration/membership compatibility blocker is separate from
+this behavior-preserving architecture increment.
+
 ---
 
 ## 1. Overview

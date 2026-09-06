@@ -37,7 +37,13 @@ const BOUNDARY_RULES: Array<{
   {
     layer: 'core',
     dir: path.join(SRC_ROOT, 'core'),
-    forbidden: ['@/modules', '@/app', '@/components', '@/hooks'],
+    forbidden: [
+      '@/modules',
+      '@/app',
+      '@/components',
+      '@/hooks',
+      '@/lib/travel',
+    ],
   },
   {
     layer: 'lib',
@@ -96,6 +102,35 @@ function extractImportSpecifiers(
   return specifiers;
 }
 
+function canonicalSpecifier(fromFile: string, specifier: string): string {
+  if (!specifier.startsWith('.')) return specifier;
+  const target = path.resolve(path.dirname(fromFile), specifier);
+  const relative = path.relative(SRC_ROOT, target);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return specifier;
+  return `@/${relative.split(path.sep).join('/')}`;
+}
+
+describe('Architecture: relative import normalization', () => {
+  const file = path.join(SRC_ROOT, 'core', 'ai', 'tools.ts');
+
+  it('detects a concrete travel dependency through a relative path', () => {
+    expect(canonicalSpecifier(file, '../../lib/travel/retrieval')).toBe(
+      '@/lib/travel/retrieval'
+    );
+  });
+
+  it('detects upward modules imports through a relative path', () => {
+    expect(canonicalSpecifier(file, '../../modules/travel')).toBe(
+      '@/modules/travel'
+    );
+  });
+
+  it('preserves permitted core imports and package imports', () => {
+    expect(canonicalSpecifier(file, './types')).toBe('@/core/ai/types');
+    expect(canonicalSpecifier(file, 'node:crypto')).toBe('node:crypto');
+  });
+});
+
 describe('Architecture: layer boundaries', () => {
   for (const rule of BOUNDARY_RULES) {
     it(`${rule.layer} layer does not import forbidden layers (${rule.forbidden.join(', ')})`, () => {
@@ -104,9 +139,10 @@ describe('Architecture: layer boundaries', () => {
         if (isTestFile(file)) continue;
         const content = fs.readFileSync(file, 'utf8');
         for (const specifier of extractImportSpecifiers(content)) {
+          const canonical = canonicalSpecifier(file, specifier);
           const forbidden = rule.forbidden.find(
             (prefix) =>
-              specifier === prefix || specifier.startsWith(`${prefix}/`)
+              canonical === prefix || canonical.startsWith(`${prefix}/`)
           );
           if (forbidden) {
             violations.push(
