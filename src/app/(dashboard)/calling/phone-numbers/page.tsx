@@ -9,6 +9,8 @@ import {
   PhoneIncoming,
   PhoneOutgoing,
   Loader2,
+  Trash2,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,7 +41,31 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CallingNav } from '@/components/calling/calling-nav';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+
+export const PROVIDER_METAS: Record<string, { label: string; badgeClass: string }> = {
+  sarvam: {
+    label: 'Sarvam AI Voice',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  },
+  exotel: {
+    label: 'Exotel (India)',
+    badgeClass: 'bg-orange-50 text-orange-700 border-orange-200',
+  },
+  twilio: {
+    label: 'Twilio Voice',
+    badgeClass: 'bg-red-50 text-red-700 border-red-200',
+  },
+  elevenlabs: {
+    label: 'ElevenLabs SIP',
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+  },
+  custom_sip: {
+    label: 'Custom SIP',
+    badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+  },
+};
 
 interface PhoneNumberItem {
   id: string;
@@ -68,7 +94,7 @@ export default function PhoneNumbersPage() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
-  const [provider, setProvider] = useState('elevenlabs');
+  const [provider, setProvider] = useState('sarvam');
   const [assignedAgentId, setAssignedAgentId] = useState<string>('none');
   const [inboundEnabled, setInboundEnabled] = useState(true);
   const [outboundEnabled, setOutboundEnabled] = useState(true);
@@ -130,12 +156,30 @@ export default function PhoneNumbersPage() {
       setAddModalOpen(false);
       setPhoneInput('');
       setAssignedAgentId('none');
+      setProvider('sarvam');
       fetchData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error adding phone number';
       toast.error(msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteNumber = async (id: string, num: string) => {
+    if (!confirm(`Are you sure you want to remove phone number ${num}?`)) return;
+    try {
+      const res = await fetch(`/api/voice/phone-numbers?id=${id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to remove phone number');
+
+      toast.success(`Removed ${num}`);
+      fetchData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error removing phone number';
+      toast.error(msg);
     }
   };
 
@@ -186,23 +230,24 @@ export default function PhoneNumbersPage() {
           <TableHeader className="bg-muted/40">
             <TableRow>
               <TableHead className="text-xs">Phone Number</TableHead>
-              <TableHead className="text-xs">Carrier / Provider</TableHead>
+              <TableHead className="text-xs">Voice / Telephony Provider</TableHead>
               <TableHead className="text-xs">Capabilities</TableHead>
               <TableHead className="text-xs">Assigned Agent</TableHead>
               <TableHead className="text-xs">Status</TableHead>
               <TableHead className="text-xs">Configured At</TableHead>
+              <TableHead className="text-xs text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-xs">
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-xs">
                   Loading phone numbers...
                 </TableCell>
               </TableRow>
             ) : phoneNumbers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs">
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs">
                   No phone numbers registered yet. Click &quot;Add Phone Number&quot; to configure your first inbound or outbound line.
                 </TableCell>
               </TableRow>
@@ -212,8 +257,16 @@ export default function PhoneNumbersPage() {
                   <TableCell className="font-mono text-xs font-semibold">
                     {p.phone_number}
                   </TableCell>
-                  <TableCell className="text-xs capitalize font-medium">
-                    {p.provider}
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'text-[11px] font-medium py-0 border',
+                        PROVIDER_METAS[p.provider]?.badgeClass || 'bg-slate-50 text-slate-700 border-slate-200'
+                      )}
+                    >
+                      {PROVIDER_METAS[p.provider]?.label || p.provider}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-xs">
                     <div className="flex items-center gap-1.5">
@@ -249,6 +302,17 @@ export default function PhoneNumbersPage() {
                   <TableCell className="text-xs text-muted-foreground">
                     {new Date(p.created_at).toLocaleDateString()}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDeleteNumber(p.id, p.phone_number)}
+                      title="Remove phone number"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -281,18 +345,53 @@ export default function PhoneNumbersPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Provider</Label>
-              <Select value={provider} onValueChange={(val) => setProvider(val || 'elevenlabs')}>
+              <Label>Voice / Telephony Provider</Label>
+              <Select value={provider} onValueChange={(val) => setProvider(val || 'sarvam')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="elevenlabs">ElevenLabs SIP Trunking</SelectItem>
+                  <SelectItem value="sarvam">Sarvam AI Voice (Indian Telephony / SIP)</SelectItem>
+                  <SelectItem value="exotel">Exotel (Indian Cloud Telephony)</SelectItem>
                   <SelectItem value="twilio">Twilio Voice</SelectItem>
+                  <SelectItem value="elevenlabs">ElevenLabs SIP Trunking</SelectItem>
                   <SelectItem value="custom_sip">Custom SIP Gateway</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {provider === 'sarvam' && (
+              <div className="p-3 bg-emerald-50/80 rounded-lg text-xs space-y-1 text-emerald-800 border border-emerald-200">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Sarvam AI Voice Provider
+                </div>
+                <p>
+                  Enter your phone number (e.g. +91 98765 43210). Inbound and outbound calls on this number will be powered by Sarvam AI multilingual Indian speech models (Hindi, Bengali, English, Tamil, Telugu, etc.).
+                </p>
+              </div>
+            )}
+
+            {provider === 'exotel' && (
+              <div className="p-3 bg-orange-50/80 rounded-lg text-xs space-y-1 text-orange-800 border border-orange-200">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-orange-600" /> Exotel Indian Telephony
+                </div>
+                <p>
+                  Enter your Exotel virtual number. Incoming calls route through Exotel and are processed in real time by your Sarvam AI agent.
+                </p>
+              </div>
+            )}
+
+            {provider === 'elevenlabs' && (
+              <div className="p-3 bg-purple-50/80 rounded-lg text-xs space-y-1 text-purple-800 border border-purple-200">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600" /> ElevenLabs SIP Trunking
+                </div>
+                <p>
+                  Enter your ElevenLabs assigned phone number ID or SIP DID for international voice calling.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Assigned Calling Agent</Label>

@@ -68,3 +68,32 @@ export async function POST(request: Request) {
     return toErrorResponse(err);
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const ctx = await requireRole('admin');
+    const db = getAdminClient();
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'MISSING_ID', message: 'Phone number ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await db
+      .from('calling_phone_numbers')
+      .delete()
+      .eq('id', id)
+      .eq('account_id', ctx.accountId);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+}
