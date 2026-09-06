@@ -58,7 +58,12 @@ export class SarvamVoiceProvider implements VoiceProvider {
   async initiateOutboundCall(
     _request: OutboundCallRequest
   ): Promise<{ externalCallId: string }> {
-    this.unavailable();
+    throw new VoiceProviderError(
+      'VOICE_OPERATION_UNSUPPORTED',
+      'Sarvam AI outbound calling requires the Voice Agents Platform (platform.sarvam.ai). ' +
+        'Please configure your Sarvam Platform App ID, Org ID, and phone number in Calling → Settings.',
+      422
+    );
   }
   async getCallStatus(_externalCallId: string): Promise<ProviderCall> {
     this.unavailable();

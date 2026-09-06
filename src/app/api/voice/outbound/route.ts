@@ -34,16 +34,56 @@ export async function POST(request: Request) {
     let contactId = typeof body?.contactId === 'string' ? body.contactId : undefined;
     const leadId = typeof body?.leadId === 'string' ? body.leadId : undefined;
     const agentId = typeof body?.agentId === 'string' ? body.agentId : undefined;
-    const providerName = (body?.provider as string) || 'elevenlabs';
+    let providerName = (body?.provider as string) || '';
 
-    if (providerName !== 'elevenlabs') {
+    const db = (await import('@/lib/db/server')).getAdminClient();
+
+    // Resolve provider from request body OR from the selected calling agent's config
+    if (agentId && !providerName) {
+      const { data: agentRow } = await db
+        .from('calling_agents')
+        .select('tts_provider, stt_provider')
+        .eq('id', agentId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      providerName = agentRow?.tts_provider || agentRow?.stt_provider || 'elevenlabs';
+    }
+    if (!providerName) providerName = 'elevenlabs';
+
+    // Validate provider telephony readiness
+    if (providerName === 'sarvam') {
+      // Sarvam Voice Agents Platform requires a configured app_id (stored as agent_id)
+      const sarvamIntegration = await voiceRepository.findIntegration(
+        ctx.accountId,
+        'sarvam'
+      );
+      const hasPlatformConfig = sarvamIntegration?.agentId;
+      if (!hasPlatformConfig) {
+        return NextResponse.json(
+          {
+            error: 'SARVAM_PLATFORM_NOT_CONFIGURED',
+            message:
+              'Sarvam AI Voice Agents Platform is not fully configured for outbound calls. ' +
+              'To make real phone calls: 1) Create a Voice Agent on platform.sarvam.ai, ' +
+              '2) Provision a phone number on the Sarvam platform, ' +
+              '3) Add your Sarvam Platform App ID in Calling → Settings. ' +
+              'Currently only Sarvam STT/TTS is configured for AI voice processing.',
+          },
+          { status: 422 }
+        );
+      }
+    }
+
+    if (providerName !== 'elevenlabs' && providerName !== 'sarvam') {
       return NextResponse.json(
-        { error: 'VOICE_OPERATION_UNSUPPORTED' },
+        {
+          error: 'VOICE_OPERATION_UNSUPPORTED',
+          message: `Outbound calling is not supported for provider "${providerName}". Configure ElevenLabs or Sarvam Voice Agents in Calling → Settings.`,
+        },
         { status: 501 }
       );
     }
 
-    const db = (await import('@/lib/db/server')).getAdminClient();
 
     // 1. Resolve Contact and/or Lead
     let contact: Awaited<ReturnType<typeof contactsRepository.getContact>> = null;
@@ -91,18 +131,34 @@ export async function POST(request: Request) {
     }
 
     // Resolve trusted tenant-scoped configuration server-side
-    const tenantConfig = await resolveTenantVoiceConfig(
-      ctx.accountId,
-      'elevenlabs',
-      { allowBootstrap: true }
-    );
+    let tenantConfig;
+    try {
+      tenantConfig = await resolveTenantVoiceConfig(
+        ctx.accountId,
+        'elevenlabs',
+        { allowBootstrap: true }
+      );
+    } catch {
+      if (providerName === 'elevenlabs') {
+        return NextResponse.json(
+          {
+            error: 'ELEVENLABS_NOT_CONFIGURED',
+            message:
+              'ElevenLabs Voice is not configured. Add your ElevenLabs API Key, Webhook Secret, and Agent ID in Calling → Settings to enable outbound calls via ElevenLabs.',
+          },
+          { status: 422 }
+        );
+      }
+      // For non-elevenlabs providers, tenantConfig remains undefined — that's OK
+      tenantConfig = null;
+    }
     const integration = await voiceRepository.findIntegration(
       ctx.accountId,
       'elevenlabs'
     );
 
     // If a custom calling_agent was selected, check if it has elevenlabs_agent_id
-    let remoteAgentId = integration?.agentId || tenantConfig.agentId;
+    let remoteAgentId = integration?.agentId || tenantConfig?.agentId;
     if (agentId) {
       const { data: callingAgent } = await db
         .from('calling_agents')
@@ -123,7 +179,7 @@ export async function POST(request: Request) {
           contactId: contactId || null,
           targetPhone,
           agentId: agentId || remoteAgentId || null,
-          provider: 'elevenlabs',
+          provider: providerName,
           context: body?.context || null,
         })
       )
@@ -216,14 +272,14 @@ export async function POST(request: Request) {
 
     // 2. Persist ONE QUEUED call document
     const callDoc = await voiceRepository.createCall(ctx.accountId, {
-      provider: 'elevenlabs',
+      provider: providerName,
       direction: 'outbound',
       status: 'queued',
       externalCallId: `pending_${command.$id}`,
       fromMasked:
-        integration?.phoneNumberMasked || tenantConfig.phoneNumberId || '***',
+        integration?.phoneNumberMasked || tenantConfig?.phoneNumberId || '***',
       toMasked: targetPhone.slice(-4).padStart(targetPhone.length, '*'),
-      fromPhone: integration?.phoneNumberMasked || tenantConfig.phoneNumberId || null,
+      fromPhone: integration?.phoneNumberMasked || tenantConfig?.phoneNumberId || null,
       toPhone: targetPhone,
       patientPhone: targetPhone,
       contactId: contact?.$id || contactId || null,
@@ -239,8 +295,11 @@ export async function POST(request: Request) {
       'initiating'
     );
 
-    // 4. Contact ElevenLabs using tenant provider instance
-    const provider = getVoiceProvider('elevenlabs', tenantConfig);
+    // 4. Contact telephony provider using tenant provider instance
+    const provider = getVoiceProvider(
+      providerName as 'elevenlabs' | 'sarvam' | 'xai',
+      tenantConfig ?? undefined
+    );
     let outboundResult: { externalCallId: string };
 
     try {
@@ -248,7 +307,7 @@ export async function POST(request: Request) {
         toNumber: targetPhone,
         agentId: remoteAgentId,
         phoneNumberId:
-          integration?.providerPhoneNumberId || tenantConfig.phoneNumberId,
+          integration?.providerPhoneNumberId || tenantConfig?.phoneNumberId,
         context:
           typeof body?.context === 'object' && body?.context
             ? (body.context as Record<string, unknown>)
@@ -324,7 +383,7 @@ export async function POST(request: Request) {
       try {
         await voiceRepository.createProviderEvent({
           accountId: ctx.accountId,
-          provider: 'elevenlabs',
+          provider: providerName,
           externalEventId: `reconcile:${outboundResult.externalCallId}`,
           eventType: 'call_reconciliation_needed',
           payloadHash: 'partial_persistence',

@@ -127,7 +127,7 @@ export function CallCustomerModal({
           contactId: contactId || undefined,
           leadId: leadId || undefined,
           agentId: selectedAgentId || undefined,
-          provider: 'elevenlabs',
+          provider: selectedAgent?.tts_provider || 'sarvam',
         }),
       });
 

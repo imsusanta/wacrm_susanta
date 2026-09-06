@@ -15,7 +15,7 @@ export function getVoiceProvider(
     case 'elevenlabs':
       return new ElevenLabsVoiceProvider(config);
     case 'sarvam':
-      return new SarvamVoiceProvider();
+      return new SarvamVoiceProvider(config);
     case 'xai':
       return new XAiVoiceProvider();
   }
