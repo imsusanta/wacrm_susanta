@@ -79,7 +79,7 @@ export default function CallingSettingsPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to save Sarvam settings');
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to save Sarvam settings');
 
       toast.success('Sarvam AI credentials encrypted & saved successfully');
       setSarvamApiKey('');
@@ -112,7 +112,7 @@ export default function CallingSettingsPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to save ElevenLabs settings');
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to save ElevenLabs settings');
 
       toast.success('ElevenLabs credentials encrypted & saved successfully');
       setElevenlabsApiKey('');

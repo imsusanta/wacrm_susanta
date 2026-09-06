@@ -118,7 +118,13 @@ export async function POST(request: Request) {
       .select('id, provider, status, updated_at')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[voice/settings] Database error saving integration:', error);
+      return NextResponse.json(
+        { error: 'DATABASE_ERROR', message: error.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -127,6 +133,11 @@ export async function POST(request: Request) {
       apiKeyMasked: maskKey(apiKey),
     });
   } catch (err) {
-    return toErrorResponse(err);
+    const message = err instanceof Error ? err.message : 'Internal server error';
+    console.error('[voice/settings] Unexpected error:', err);
+    return NextResponse.json(
+      { error: 'VOICE_SETTINGS_SAVE_FAILED', message },
+      { status: 500 }
+    );
   }
 }
