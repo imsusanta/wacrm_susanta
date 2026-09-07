@@ -286,5 +286,6 @@ export const providerEventsRepository = {
 export {
   isUniqueViolation,
   voiceRepository,
+  type VoiceCommandDocument,
   type VoiceIntegrationDocument,
 } from '@/core/repositories/voice';

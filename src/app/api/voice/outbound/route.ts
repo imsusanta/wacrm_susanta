@@ -5,6 +5,7 @@ import {
   contactsRepository,
   isUniqueViolation,
   voiceRepository,
+  type VoiceCommandDocument,
 } from '@/lib/db/repositories';
 import { getVoiceProvider } from '@/core/providers/voice/provider-factory';
 import { VoiceProviderError } from '@/core/providers/voice/voice-provider.interface';
@@ -236,7 +237,7 @@ export async function POST(request: Request) {
     }
 
     // Atomically claim idempotency key
-    let command: Record<string, unknown>;
+    let command: VoiceCommandDocument;
     try {
       command = await voiceRepository.createCommand({
         accountId: ctx.accountId,
