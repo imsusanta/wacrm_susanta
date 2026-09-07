@@ -1,8 +1,12 @@
 import crypto, { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/account';
-import { contactsRepository } from '@/lib/db/repositories';
-import { voiceRepository } from '@/lib/db/repositories';
+import {
+  contactsRepository,
+  isUniqueViolation,
+  voiceRepository,
+  type VoiceCommandDocument,
+} from '@/lib/db/repositories';
 import { getVoiceProvider } from '@/core/providers/voice/provider-factory';
 import { VoiceProviderError } from '@/core/providers/voice/voice-provider.interface';
 import { resolveTenantVoiceConfig } from '@/core/providers/voice/credential-resolver';
@@ -30,10 +34,13 @@ export async function POST(request: Request) {
       context?: unknown;
     } | null;
 
-    let targetPhone = typeof body?.toNumber === 'string' ? body.toNumber.trim() : '';
-    let contactId = typeof body?.contactId === 'string' ? body.contactId : undefined;
+    let targetPhone =
+      typeof body?.toNumber === 'string' ? body.toNumber.trim() : '';
+    let contactId =
+      typeof body?.contactId === 'string' ? body.contactId : undefined;
     const leadId = typeof body?.leadId === 'string' ? body.leadId : undefined;
-    const agentId = typeof body?.agentId === 'string' ? body.agentId : undefined;
+    const agentId =
+      typeof body?.agentId === 'string' ? body.agentId : undefined;
     let providerName = (body?.provider as string) || '';
 
     const db = (await import('@/lib/db/server')).getAdminClient();
@@ -46,7 +53,8 @@ export async function POST(request: Request) {
         .eq('id', agentId)
         .eq('account_id', ctx.accountId)
         .maybeSingle();
-      providerName = agentRow?.tts_provider || agentRow?.stt_provider || 'elevenlabs';
+      providerName =
+        agentRow?.tts_provider || agentRow?.stt_provider || 'elevenlabs';
     }
     if (!providerName) providerName = 'elevenlabs';
 
@@ -84,9 +92,9 @@ export async function POST(request: Request) {
       );
     }
 
-
     // 1. Resolve Contact and/or Lead
-    let contact: Awaited<ReturnType<typeof contactsRepository.getContact>> = null;
+    let contact: Awaited<ReturnType<typeof contactsRepository.getContact>> =
+      null;
     if (contactId) {
       contact = await contactsRepository.getContact(ctx.accountId, contactId);
       if (contact && typeof contact.phone === 'string') {
@@ -102,7 +110,10 @@ export async function POST(request: Request) {
       if (lead) {
         if (lead.contact_id) {
           contactId = lead.contact_id;
-          contact = await contactsRepository.getContact(ctx.accountId, lead.contact_id);
+          contact = await contactsRepository.getContact(
+            ctx.accountId,
+            lead.contact_id
+          );
         }
         if (lead.phone) {
           targetPhone = targetPhone || lead.phone;
@@ -114,7 +125,8 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: 'VOICE_PROVIDER_REQUEST_FAILED',
-          message: 'A valid phone number (at least 8 digits) or valid contactId/leadId is required',
+          message:
+            'A valid phone number (at least 8 digits) or valid contactId/leadId is required',
         },
         { status: 400 }
       );
@@ -225,7 +237,7 @@ export async function POST(request: Request) {
     }
 
     // Atomically claim idempotency key
-    let command: Record<string, unknown>;
+    let command: VoiceCommandDocument;
     try {
       command = await voiceRepository.createCommand({
         accountId: ctx.accountId,
@@ -237,8 +249,7 @@ export async function POST(request: Request) {
         updatedAt: new Date().toISOString(),
       });
     } catch (err: unknown) {
-      const code = (err as { code?: number })?.code;
-      if (code === 409) {
+      if (isUniqueViolation(err)) {
         const raceCommand = await voiceRepository.findCommand(
           ctx.accountId,
           idempotencyKey
@@ -286,7 +297,8 @@ export async function POST(request: Request) {
       fromMasked:
         integration?.phoneNumberMasked || tenantConfig?.phoneNumberId || '***',
       toMasked: targetPhone.slice(-4).padStart(targetPhone.length, '*'),
-      fromPhone: integration?.phoneNumberMasked || tenantConfig?.phoneNumberId || null,
+      fromPhone:
+        integration?.phoneNumberMasked || tenantConfig?.phoneNumberId || null,
       toPhone: targetPhone,
       patientPhone: targetPhone,
       contactId: contact?.$id || contactId || null,
@@ -342,7 +354,7 @@ export async function POST(request: Request) {
         }
       );
 
-      await voiceRepository.updateCommand(commandRefId, {
+      await voiceRepository.updateCommand(ctx.accountId, commandRefId, {
         status: 'failed',
         lastErrorSanitized:
           error instanceof VoiceProviderError
@@ -378,7 +390,7 @@ export async function POST(request: Request) {
         }
       );
 
-      await voiceRepository.updateCommand(commandRefId, {
+      await voiceRepository.updateCommand(ctx.accountId, commandRefId, {
         status: 'succeeded',
         externalCallId: outboundResult.externalCallId,
         resultReference: outboundResult.externalCallId,
@@ -411,7 +423,8 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: 'VOICE_PROVIDER_PERSISTENCE_FAILED',
-          message: 'Call placed but local record update failed; reconciliation queued',
+          message:
+            'Call placed but local record update failed; reconciliation queued',
         },
         { status: 500 }
       );
@@ -424,7 +437,8 @@ export async function POST(request: Request) {
         { status: error.status }
       );
     }
-    const message = error instanceof Error ? error.message : 'Internal server error';
+    const message =
+      error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
       { error: 'INTERNAL_SERVER_ERROR', message },
       { status: 500 }

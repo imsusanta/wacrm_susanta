@@ -6,6 +6,7 @@ import {
   type VoiceProviderName,
 } from '@/core/providers/voice/voice-provider.interface';
 import { voiceRepository } from '@/lib/db/repositories';
+import { isUniqueViolation } from '@/core/repositories/voice';
 import { storageRepository } from '@/lib/storage/repository';
 import { STORAGE_BUCKETS } from '@/lib/storage/buckets';
 import { resolveTenantVoiceConfig } from '@/core/providers/voice/credential-resolver';
@@ -121,7 +122,8 @@ export async function POST(
     // 4. Pre-check for duplicate event before Storage upload to prevent orphan files
     const preExistingEvent = await voiceRepository.findProviderEvent(
       providerName,
-      event.externalEventId
+      event.externalEventId,
+      integration.accountId
     );
 
     if (preExistingEvent) {
@@ -219,11 +221,11 @@ export async function POST(
           .catch(() => undefined);
       }
 
-      const code = (err as { code?: number })?.code;
-      if (code === 409) {
+      if (isUniqueViolation(err)) {
         const existingEvent = await voiceRepository.findProviderEvent(
           providerName,
-          event.externalEventId
+          event.externalEventId,
+          integration.accountId
         );
         if (existingEvent && existingEvent.payloadHash !== payloadHash) {
           return NextResponse.json(
