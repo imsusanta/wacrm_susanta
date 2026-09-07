@@ -8,13 +8,7 @@ import {
 } from '@/lib/travel/retrieval';
 import { parseTravelerRequirements } from '@/lib/travel/matching';
 import { TOUR_PACKAGE_RETRIEVAL_UNAVAILABLE } from '@/lib/travel/types';
-import {
-  confirmPendingTravelBooking,
-  prepareTravelBookingConfirmOffer,
-  rememberDiscussedTourPackage,
-  sendTravelBookingConfirmTemplate,
-} from '@/lib/travel/booking-confirm';
-import type { AiExecutionContext, AiToolDefinition } from './types';
+import type { AiExecutionContext, AiToolDefinition } from '@/core/ai/types';
 
 type ToolRegistry = {
   get: (name: string) => AiToolDefinition | undefined;
@@ -82,6 +76,8 @@ export function registerTourPackageTools(registry: ToolRegistry): void {
         const top = result.matches[0];
         if (top) {
           try {
+            const { rememberDiscussedTourPackage } =
+              await import('@/lib/travel/booking-confirm');
             await rememberDiscussedTourPackage({
               accountId: accountIdOf(context),
               contactId: context.contactId,
@@ -151,6 +147,8 @@ export function registerTourPackageTools(registry: ToolRegistry): void {
           };
         }
         try {
+          const { rememberDiscussedTourPackage } =
+            await import('@/lib/travel/booking-confirm');
           await rememberDiscussedTourPackage({
             accountId: accountIdOf(context),
             contactId: context.contactId,
@@ -396,6 +394,8 @@ export function registerTourPackageTools(registry: ToolRegistry): void {
     },
     execute: async (params, context) => {
       try {
+        const { sendTravelBookingConfirmTemplate } =
+          await import('@/lib/travel/booking-confirm');
         const offer = await sendTravelBookingConfirmTemplate({
           accountId: accountIdOf(context),
           userId: context.userId,
@@ -449,6 +449,10 @@ export function registerTourPackageTools(registry: ToolRegistry): void {
     },
     execute: async (params, context) => {
       try {
+        const {
+          prepareTravelBookingConfirmOffer,
+          confirmPendingTravelBooking,
+        } = await import('@/lib/travel/booking-confirm');
         if (params.packageName) {
           await prepareTravelBookingConfirmOffer({
             accountId: accountIdOf(context),

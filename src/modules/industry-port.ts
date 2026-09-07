@@ -16,12 +16,22 @@ import {
 import { getAdminClient } from '@/lib/db/server';
 import { matchTourPackagesForMessage } from '@/lib/travel/retrieval';
 import { buildTravelPackagePromptBlock } from '@/lib/travel/prompt';
+import type { AiToolDefinition } from '@/core/ai/types';
+import { registerTourPackageTools } from './travel/ai/tools';
 import {
   getIndustryModule,
   resolveSystemPrompt,
   INDUSTRY_REGISTRY,
 } from './registry';
 import { resolveIndustryAlias } from './terminology';
+
+const travelTools = new Map<string, AiToolDefinition>();
+registerTourPackageTools({
+  get: (name) => travelTools.get(name),
+  register: (tool) => {
+    travelTools.set(tool.name, tool);
+  },
+});
 
 function toCoreManifest(industry?: string | null): CoreIndustryManifest {
   const industryModule = getIndustryModule(industry);
@@ -39,6 +49,7 @@ function toCoreManifest(industry?: string | null): CoreIndustryManifest {
 }
 
 export const modulesIndustryPort: IndustryModulePort = {
+  getAiTools: () => Array.from(travelTools.values()),
   getIndustryModule: (industry) => toCoreManifest(industry),
   resolveSystemPrompt: (industry, customPrompt) =>
     resolveSystemPrompt(industry, customPrompt),

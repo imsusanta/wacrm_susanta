@@ -9,6 +9,8 @@
  * the test bootstrap (`src/tests/setup.ts`).
  */
 
+import type { AiToolDefinition } from '@/core/ai/types';
+
 export interface CoreIndustryManifest {
   id: string;
   name: string;
@@ -43,6 +45,11 @@ export interface IndustryModulePort {
   augmentSystemPrompt?(params: SystemPromptAugmentationParams): Promise<string>;
   /** Retrieve all seeded knowledge base titles registered across industries. */
   getSeededKnowledgeTitles?(): Set<string> | string[];
+  /**
+   * Industry-owned tool implementations. Core retains industry filtering
+   * and the trusted executor remains the authorization decision.
+   */
+  getAiTools?(): readonly AiToolDefinition[];
 }
 
 const DEFAULT_GENERAL_MANIFEST: CoreIndustryManifest = {
