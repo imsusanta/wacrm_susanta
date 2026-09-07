@@ -1,5 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import {
+  createClient as createSupabaseClient,
+  type SupabaseClient,
+} from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import {
   requireSupabasePublicConfig,
@@ -47,10 +50,11 @@ export async function createClient(options: ServerClientOptions = {}) {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let adminClientInstance: any = null;
+// Keep SDK method/query-builder types at the facade boundary. Table-specific
+// generated types are a separate step once the canonical schema is verified.
+let adminClientInstance: SupabaseClient | null = null;
 
-export function getAdminClient() {
+export function getAdminClient(): SupabaseClient {
   if (adminClientInstance && process.env.NODE_ENV === 'production') {
     return adminClientInstance;
   }

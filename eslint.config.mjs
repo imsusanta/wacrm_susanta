@@ -45,9 +45,11 @@ const eslintConfig = defineConfig([
                 '@/components/*',
                 '@/hooks',
                 '@/hooks/*',
+                '@/lib/travel',
+                '@/lib/travel/*',
               ],
               message:
-                'Core must not depend on the modules/app/components/hooks layers. Consume industry capabilities via the port in @/core/modules.',
+                'Core must not depend on modules/app/components/hooks or concrete travel services. Consume industry capabilities via the port in @/core/modules.',
             },
           ],
         },
