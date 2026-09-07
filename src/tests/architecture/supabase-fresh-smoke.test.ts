@@ -45,6 +45,8 @@ describe('supabase-fresh-smoke local-only contract', () => {
       'supabase stop --project-id "$SMOKE_PROJECT_ID"'
     );
     expect(EXECUTABLE).not.toMatch(/\bsupabase stop(?! --project-id)/);
+    expect(EXECUTABLE).toContain('host port');
+    expect(EXECUTABLE).toContain('will not stop another Supabase project');
   });
 
   it('refuses unsafe CLI flags even when they appear as arguments', () => {

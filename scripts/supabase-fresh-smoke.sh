@@ -70,6 +70,34 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
+port_in_use() {
+  local port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn | grep -qE ":${port}[[:space:]]"
+  else
+    python3 - "$port" <<'PY'
+import socket, sys
+port = int(sys.argv[1])
+s = socket.socket()
+try:
+    s.bind(("0.0.0.0", port))
+except OSError:
+    sys.exit(0)
+finally:
+    s.close()
+sys.exit(1)
+PY
+  fi
+}
+
+# Isolated start still uses the committed host ports. If another local stack
+# already holds them, refuse instead of stopping that unrelated project.
+for port in 54321 54322; do
+  if port_in_use "$port"; then
+    fail_closed "refusing to start: host port ${port} is already in use. Isolated smoke will not stop another Supabase project (for example wacrm). Free the port yourself, or run this on a machine without an existing local stack."
+  fi
+done
+
 # Isolated workdir so start/reset use project_id=helpa-fresh-smoke and never
 # supabase stop --all / the developer's default `wacrm` stack.
 SMOKE_ROOT="$(mktemp -d /tmp/helpa-fresh-smoke.XXXXXX)"

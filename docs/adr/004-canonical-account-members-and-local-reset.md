@@ -81,3 +81,22 @@ locally, but a successful `--linked` reset would wipe a remote database.
 - **Negative:** `scripts/supabase_schema_complete.sql` plus the membership view
   remains a divergent local-dev schema. It must not be treated as production
   truth.
+
+## Observed local environment (2026-09-07)
+
+Read-only inspection of the already-running `wacrm` stack
+(`docker exec supabase_db_wacrm psql`):
+
+- `public.account_members` is a **view** over `profiles` (`relkind = v`).
+- `supabase_migrations.schema_migrations` is absent. The committed migration
+  chain was not applied (matches `scripts/setup-local-supabase.sh`, which
+  empties `supabase/migrations` before `supabase start`).
+- Isolated smoke (`HELPA_ALLOW_LOCAL_DB_RESET=1`, project id
+  `helpa-fresh-smoke`) **did not** stop `wacrm`. It failed closed when binding
+  `0.0.0.0:54322` because that port is already allocated. Exit code 1.
+- Dummy CI `NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co` is refused
+  (exit 2) before any Docker work.
+
+**Phase 3 blocker:** do not generate `src/types/database.generated.ts` from this
+local view-shaped schema or from a remote/linked project. Canonical types
+require a verified local apply of the cutover **table** chain.
